@@ -1,4 +1,6 @@
 // Lightweight mock API backed by localStorage for prototyping
+import { templates, sendMockEmail } from "./notifications"
+
 export const mockApi = {
   registerCompany: async (companyName: string, adminEmail: string) => {
     localStorage.setItem("companyName", companyName)
@@ -78,8 +80,18 @@ export const mockApi = {
     localStorage.setItem("evaluatorInvites", JSON.stringify(invites))
 
     const sent = JSON.parse(localStorage.getItem("sentEmails") || "[]")
-    sent.push({ to: email, subject: "You are invited to join as Evaluator", body: `Accept invite: /evaluator/accept?token=${token}`, token, sentAt: new Date().toISOString() })
+    const body = `Accept invite: /evaluator/accept?token=${token}`
+    sent.push({ to: email, subject: "You are invited to join as Evaluator", body, token, sentAt: new Date().toISOString() })
     localStorage.setItem("sentEmails", JSON.stringify(sent))
+
+    // send mock email using templates if available
+    try {
+      const company = localStorage.getItem("companyName") || "Your Company"
+      const tpl = templates?.evaluatorInvite?.({ evaluatorEmail: email, company, invitedBy })
+      if (tpl) await sendMockEmail(email, tpl.subject, tpl.body)
+    } catch (e) {
+      // ignore in mock
+    }
 
     const logs = JSON.parse(localStorage.getItem("auditLogs") || "[]")
     logs.unshift(`Evaluator invited: ${email} by ${invitedBy} on ${new Date().toLocaleString()}`)
@@ -170,12 +182,40 @@ export const mockApi = {
   },
 
   promoteCandidate: async (candidateId: string) => {
+    // promote by id; optionally convert to evaluator role and notify
     const candidates = JSON.parse(localStorage.getItem("candidates") || "[]")
-    const updated = candidates.map((c: any) => (c.id === candidateId ? { ...c, role: "employee" } : c))
+    let promotedCandidate: any = null
+    const updated = candidates.map((c: any) => {
+      if (c.id === candidateId) {
+        promotedCandidate = { ...c, role: "evaluator", promotedAt: new Date().toISOString() }
+        return promotedCandidate
+      }
+      return c
+    })
     localStorage.setItem("candidates", JSON.stringify(updated))
-    const logs = JSON.parse(localStorage.getItem("auditLogs") || "[]")
-    logs.unshift(`Candidate promoted: ${candidateId} on ${new Date().toLocaleString()}`)
-    localStorage.setItem("auditLogs", JSON.stringify(logs))
+
+    // also add to evaluators list for visibility
+    if (promotedCandidate) {
+      const evaluators = JSON.parse(localStorage.getItem("evaluators") || "[]")
+      if (!evaluators.find((e: any) => (e.email || e) === promotedCandidate.email)) {
+        evaluators.push(promotedCandidate.email)
+        localStorage.setItem("evaluators", JSON.stringify(evaluators))
+      }
+
+      const logs = JSON.parse(localStorage.getItem("auditLogs") || "[]")
+      logs.unshift(`Candidate promoted to Evaluator: ${promotedCandidate.email || candidateId} on ${new Date().toLocaleString()}`)
+      localStorage.setItem("auditLogs", JSON.stringify(logs))
+
+      // send promotion notification if possible
+      try {
+        const company = localStorage.getItem("companyName") || "Your Company"
+        const tpl = templates?.promotion?.({ candidateName: promotedCandidate.name, candidateEmail: promotedCandidate.email, company, promotedBy: "Admin" })
+        if (tpl && promotedCandidate.email) await sendMockEmail(promotedCandidate.email, tpl.subject, tpl.body)
+      } catch (e) {
+        // ignore
+      }
+    }
+
     return { ok: true }
   },
 
@@ -193,13 +233,30 @@ export const mockApi = {
   inviteCandidate: async (candidate: { name: string; email: string }, invitedBy: string) => {
     const candidates = JSON.parse(localStorage.getItem("candidates") || "[]")
     const id = Date.now().toString()
-    const record = { id, name: candidate.name, email: candidate.email, role: "candidate", invitedBy, invitedAt: new Date().toISOString() }
+    // evaluationStatus: not_assigned | assigned | in_progress | completed | flagged
+    const record = { id, name: candidate.name, email: candidate.email, role: "candidate", evaluationStatus: "not_assigned", invitedBy, invitedAt: new Date().toISOString() }
     candidates.push(record)
     localStorage.setItem("candidates", JSON.stringify(candidates))
     const logs = JSON.parse(localStorage.getItem("auditLogs") || "[]")
     logs.unshift(`Candidate invited: ${candidate.email} by ${invitedBy} on ${new Date().toLocaleString()}`)
     localStorage.setItem("auditLogs", JSON.stringify(logs))
     return record
+  },
+
+  // Update a candidate's evaluation status (admin/evaluator action)
+  updateCandidateEvaluationStatus: async (candidateId: string, status: string, changedBy: string) => {
+    const allowed = ["not_assigned", "assigned", "in_progress", "completed", "flagged"]
+    if (!allowed.includes(status)) return { ok: false, reason: "invalid_status" }
+    const candidates = JSON.parse(localStorage.getItem("candidates") || "[]")
+    const idx = candidates.findIndex((c: any) => c.id === candidateId)
+    if (idx < 0) return { ok: false, reason: "not_found" }
+    candidates[idx].evaluationStatus = status
+    candidates[idx].evaluationStatusChangedAt = new Date().toISOString()
+    localStorage.setItem("candidates", JSON.stringify(candidates))
+    const logs = JSON.parse(localStorage.getItem("auditLogs") || "[]")
+    logs.unshift(`Candidate ${candidates[idx].email || candidateId} evaluation status updated to ${status} by ${changedBy} on ${new Date().toLocaleString()}`)
+    localStorage.setItem("auditLogs", JSON.stringify(logs))
+    return { ok: true }
   },
 
   // Register candidate (simulates accepting invite)

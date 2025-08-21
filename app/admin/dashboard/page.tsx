@@ -16,14 +16,11 @@ export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [adminEmail, setAdminEmail] = useState("")
   const [companyName, setCompanyName] = useState<string>(
-    localStorage.getItem("companyName") || "TechNova Pvt Ltd",
+    "TechNova Pvt Ltd",
   )
-  const [evaluators, setEvaluators] = useState<string[]>(
-    JSON.parse(localStorage.getItem("evaluators") || "[\"evaluator1@technova.com\", \"evaluator2@technova.com\"]"),
-  )
-  const [auditLogs, setAuditLogs] = useState<string[]>(
-    JSON.parse(localStorage.getItem("auditLogs") || "[\"System initialized: sample data loaded (2025-08-18)\"]"),
-  )
+  const [evaluators, setEvaluators] = useState<string[]>([])
+  const [candidatesList, setCandidatesList] = useState<any[]>([])
+  const [auditLogs, setAuditLogs] = useState<string[]>(["System initialized: sample data loaded (2025-08-18)"])
   const [activeTab, setActiveTab] = useState("overview")
   const [showAddCandidateForm, setShowAddCandidateForm] = useState(false)
   const [candidateForm, setCandidateForm] = useState({
@@ -42,6 +39,25 @@ export default function AdminDashboard() {
       setIsAuthenticated(true)
       setAdminEmail(email)
       if (storedCompany) setCompanyName(storedCompany)
+      // safely hydrate client-only data
+      try {
+        const ev = JSON.parse(localStorage.getItem("evaluators") || "[]")
+        setEvaluators(Array.isArray(ev) ? ev : [])
+      } catch (e) {
+        setEvaluators([])
+      }
+      try {
+        const logs = JSON.parse(localStorage.getItem("auditLogs") || "[]")
+        setAuditLogs(Array.isArray(logs) && logs.length ? logs : ["System initialized: sample data loaded (2025-08-18)"])
+      } catch (e) {
+        // keep default
+      }
+      try {
+        const c = JSON.parse(localStorage.getItem("candidates") || "[]")
+        setCandidatesList(Array.isArray(c) ? c : [])
+      } catch (e) {
+        setCandidatesList([])
+      }
     }
   }, [router])
 
@@ -84,6 +100,44 @@ export default function AdminDashboard() {
     localStorage.setItem("evaluators", JSON.stringify(next))
     recordAudit(`Admin invited evaluator ${inviteEmail}`)
     alert(`Invitation sent to ${inviteEmail} (mock)`)
+  }
+
+  const handleBulkInviteEvaluators = async () => {
+    const input = prompt('Enter evaluator emails separated by commas')
+    if (!input) return
+    const emails = input.split(',').map(e => e.trim()).filter(Boolean)
+    for (const em of emails) {
+      const res = await mockApi.inviteEvaluator(em, adminEmail)
+      if (res.ok) {
+        recordAudit(`Admin invited evaluator ${em} (bulk)`)
+      }
+    }
+    setEvaluators(JSON.parse(localStorage.getItem('evaluators') || '[]'))
+    alert(`Invites processed for ${emails.length} emails (mock).`)
+  }
+
+  const handlePromoteCandidate = async (candidateId: string, candidateEmail?: string, candidateName?: string) => {
+    const confirmed = window.confirm(`Promote ${candidateName || candidateEmail || candidateId} to Evaluator? This will create an Evaluator account and send a notification email.`)
+    if (!confirmed) return
+    const res = await mockApi.promoteCandidate(candidateId)
+    if (res.ok) {
+      recordAudit(`Admin promoted candidate ${candidateEmail || candidateId} to Evaluator`)
+      setCandidatesList(JSON.parse(localStorage.getItem('candidates') || '[]'))
+      setEvaluators(JSON.parse(localStorage.getItem('evaluators') || '[]'))
+      alert('Candidate promoted and notified (mock)')
+    } else {
+      alert('Promotion failed (mock)')
+    }
+  }
+
+  const handleSendCandidateEmail = (to: string, name?: string) => {
+    const subject = `Message from ${companyName}`
+    const body = `Hello ${name || ''},\n\nYou have a message from the admin.\n\nBest regards,\n${companyName}`
+    const sent = JSON.parse(localStorage.getItem('sentEmails') || '[]')
+    sent.push({ to, subject, body, sentAt: new Date().toISOString() })
+    localStorage.setItem('sentEmails', JSON.stringify(sent))
+    recordAudit(`Admin sent email to ${to}`)
+    alert('Email sent (mock)')
   }
 
   const handleInviteEvaluatorApi = async () => {
@@ -529,7 +583,7 @@ export default function AdminDashboard() {
                     <Badge className="bg-yellow-100 text-yellow-800">In Progress</Badge>
                   </div>
                   <div className="text-center py-4">
-                    <Link href="/admin/evaluations">
+                    <Link href="/admin/candidates">
                       <Button variant="outline" className="bg-transparent">
                         Manage All Candidates
                       </Button>
@@ -658,6 +712,7 @@ export default function AdminDashboard() {
                           handleInviteEvaluator(el.value.trim())
                           el.value = ''
                         }}>Send Invite</Button>
+                        <Button variant="outline" onClick={handleBulkInviteEvaluators}>Bulk Invite</Button>
                       </div>
                     </div>
 
@@ -669,6 +724,39 @@ export default function AdminDashboard() {
                             <p className="text-xs text-gray-500">{e}</p>
                           </div>
                           <div className="text-sm text-gray-500">Invited</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="p-4 border rounded-lg">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-medium">Candidates</h4>
+                      <span className="text-sm text-gray-500">{candidatesList.length} total</span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {candidatesList.length === 0 && <p className="text-gray-400">No candidates yet.</p>}
+                      {candidatesList.map((c) => (
+                        <div key={c.id} className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium">{c.name || c.email}</p>
+                            <p className="text-xs text-gray-500">{c.email}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge className={c.role === 'employee' ? 'bg-gray-100 text-gray-800' : c.role === 'candidate' ? 'bg-yellow-50 text-yellow-800' : 'bg-blue-100 text-blue-800'}>
+                              {c.role}
+                            </Badge>
+
+                            <div className="flex items-center gap-2">
+                              <Button size="sm" onClick={() => handleSendCandidateEmail(c.email, c.name)}>Send Email</Button>
+                              {c.role !== 'evaluator' && (
+                                <Button size="sm" onClick={() => handlePromoteCandidate(c.id, c.email, c.name)}>
+                                  Promote
+                                </Button>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>

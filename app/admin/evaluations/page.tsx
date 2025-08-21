@@ -40,13 +40,14 @@ import {
   FileText,
   Users,
   Clock,
-  Mail,
   Copy,
   Eye,
   Play,
   Pause,
   Filter,
   User,
+  X,
+  Circle as CircleIcon,
 } from "lucide-react"
 import Link from "next/link"
 
@@ -74,19 +75,12 @@ interface Evaluation {
   accessToken: string
 }
 
-interface Candidate {
-  id: string
-  name: string
-  email: string
-  status: "pending" | "in-progress" | "completed" | "invited"
-  lastActivity?: Date
-}
 
 export default function EvaluationsPage() {
   const router = useRouter()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [evaluations, setEvaluations] = useState<Evaluation[]>([])
-  const [candidates, setCandidates] = useState<Candidate[]>([])
+  // candidates are managed on a separate page (/admin/candidates)
   const [questions, setQuestions] = useState<Question[]>([])
   const [questionBanks] = useState([
     { subject: "React", questionCount: 25 },
@@ -95,14 +89,21 @@ export default function EvaluationsPage() {
     { subject: "Python", questionCount: 35 },
     { subject: "Node.js", questionCount: 18 },
   ])
-  const [groups, setGroups] = useState(() =>
-    JSON.parse(localStorage.getItem("groups") || "[\"Batch 2025\", \"Interns Q3\"]"),
-  )
+  const [groups, setGroups] = useState<string[]>(["Batch 2025", "Interns Q3"])
+
+  useEffect(() => {
+    try {
+      const saved = typeof window !== "undefined" ? localStorage.getItem("groups") : null
+      if (saved) setGroups(JSON.parse(saved))
+    } catch (e) {
+      // ignore and keep defaults
+    }
+  }, [])
 
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [isCreateEvaluationOpen, setIsCreateEvaluationOpen] = useState(false)
-  const [isAddCandidateOpen, setIsAddCandidateOpen] = useState(false)
+  // candidate management moved to /admin/candidates
   const [isQuestionSelectorOpen, setIsQuestionSelectorOpen] = useState(false)
   const [selectedEvaluation, setSelectedEvaluation] = useState<Evaluation | null>(null)
   const [currentSubjectForSelection, setCurrentSubjectForSelection] = useState<string>("")
@@ -120,11 +121,6 @@ export default function EvaluationsPage() {
     duration: 60,
     expiryDate: "",
     assignedCandidates: [] as string[],
-  })
-
-  const [newCandidate, setNewCandidate] = useState({
-    name: "",
-    email: "",
   })
 
   const [editingEvaluation, setEditingEvaluation] = useState<Evaluation | null>(null)
@@ -168,22 +164,14 @@ export default function EvaluationsPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<string>("")
   const [isAssignTemplateOpen, setIsAssignTemplateOpen] = useState(false)
   const [templateAssignment, setTemplateAssignment] = useState({
-    assignedCandidates: [] as string[],
     expiryDate: "",
     duration: 60,
   })
 
-  const [emailSending, setEmailSending] = useState<string[]>([])
-  const [emailStatus, setEmailStatus] = useState<{ [key: string]: "success" | "error" | null }>({})
-
   const [successMessage, setSuccessMessage] = useState("")
   const [adminEmail, setAdminEmail] = useState<string>("admin@example.com")
 
-  const [isAssignCandidatesOpen, setIsAssignCandidatesOpen] = useState(false)
-  const [evaluationForAssignment, setEvaluationForAssignment] = useState<Evaluation | null>(null)
-  const [candidateAssignment, setCandidateAssignment] = useState({
-    assignedCandidates: [] as string[],
-  })
+  // candidate assignment is done on the Candidates page
 
   useEffect(() => {
     const auth = localStorage.getItem("adminAuth")
@@ -207,7 +195,6 @@ export default function EvaluationsPage() {
     const loadData = () => {
       try {
         const savedEvaluations = localStorage.getItem("evaluations")
-        const savedCandidates = localStorage.getItem("candidates")
 
         if (savedEvaluations) {
           const parsedEvaluations = JSON.parse(savedEvaluations)
@@ -220,21 +207,9 @@ export default function EvaluationsPage() {
         } else {
           loadMockData()
         }
-
-        if (savedCandidates) {
-          const parsedCandidates = JSON.parse(savedCandidates)
-          const candidatesWithDates = parsedCandidates.map((candidate: any) => ({
-            ...candidate,
-            lastActivity: candidate.lastActivity ? new Date(candidate.lastActivity) : new Date(),
-          }))
-          setCandidates(candidatesWithDates)
-        } else {
-          loadMockCandidates()
-        }
       } catch (error) {
         console.error("Error loading data from localStorage:", error)
         loadMockData()
-        loadMockCandidates()
       }
     }
 
@@ -244,7 +219,6 @@ export default function EvaluationsPage() {
   const loadMockData = () => {
     const savedEvaluations = localStorage.getItem("evaluations")
     const savedQuestions = localStorage.getItem("questions")
-    const savedCandidates = localStorage.getItem("candidates")
 
     // Mock questions
     const mockQuestions: Question[] = [
@@ -345,72 +319,14 @@ export default function EvaluationsPage() {
       },
     ]
 
-    const questionsToUse = savedQuestions ? JSON.parse(savedQuestions) : mockQuestions
-    const evaluationsToUse = savedEvaluations ? JSON.parse(savedEvaluations) : mockEvaluations
+  const questionsToUse = savedQuestions ? JSON.parse(savedQuestions) : mockQuestions
+  const evaluationsToUse = savedEvaluations ? JSON.parse(savedEvaluations) : mockEvaluations
 
     setQuestions(questionsToUse)
     setEvaluations(evaluationsToUse)
 
     if (!savedQuestions) localStorage.setItem("questions", JSON.stringify(mockQuestions))
     if (!savedEvaluations) localStorage.setItem("evaluations", JSON.stringify(mockEvaluations))
-  }
-
-  const loadMockCandidates = () => {
-    const savedCandidates = localStorage.getItem("candidates")
-
-    // Mock candidates
-    const mockCandidates: Candidate[] = [
-      { id: "1", name: "John Doe", email: "john.doe@example.com", status: "completed", lastActivity: new Date() },
-      {
-        id: "2",
-        name: "Sarah Wilson",
-        email: "sarah.wilson@example.com",
-        status: "in-progress",
-        lastActivity: new Date(),
-      },
-      { id: "3", name: "Mike Johnson", email: "mike.johnson@example.com", status: "pending" },
-      { id: "4", name: "Emily Davis", email: "emily.davis@example.com", status: "completed", lastActivity: new Date() },
-      { id: "5", name: "Alex Chen", email: "alex.chen@example.com", status: "pending" },
-      { id: "6", name: "Jessica Rodriguez", email: "jessica.rodriguez@example.com", status: "pending" },
-      { id: "7", name: "David Kim", email: "david.kim@example.com", status: "invited" },
-      { id: "8", name: "Lisa Thompson", email: "lisa.thompson@example.com", status: "pending" },
-      {
-        id: "9",
-        name: "Robert Brown",
-        email: "robert.brown@example.com",
-        status: "completed",
-        lastActivity: new Date(),
-      },
-      {
-        id: "10",
-        name: "Maria Garcia",
-        email: "maria.garcia@example.com",
-        status: "in-progress",
-        lastActivity: new Date(),
-      },
-      { id: "11", name: "James Wilson", email: "james.wilson@example.com", status: "pending" },
-      { id: "12", name: "Anna Lee", email: "anna.lee@example.com", status: "invited" },
-      { id: "13", name: "Chris Taylor", email: "chris.taylor@example.com", status: "pending" },
-      {
-        id: "14",
-        name: "Sophie Martin",
-        email: "sophie.martin@example.com",
-        status: "completed",
-        lastActivity: new Date(),
-      },
-      { id: "15", name: "Kevin Zhang", email: "kevin.zhang@example.com", status: "pending" },
-    ]
-
-    const candidatesToUse = savedCandidates
-      ? JSON.parse(savedCandidates).map((candidate: any) => ({
-          ...candidate,
-          lastActivity: candidate.lastActivity ? new Date(candidate.lastActivity) : undefined,
-        }))
-      : mockCandidates
-
-    setCandidates(candidatesToUse)
-
-    if (!savedCandidates) localStorage.setItem("candidates", JSON.stringify(mockCandidates))
   }
 
   const handleCreateEvaluation = () => {
@@ -437,7 +353,7 @@ export default function EvaluationsPage() {
       duration: newEvaluation.duration,
       expiryDate: new Date(newEvaluation.expiryDate),
       status: "draft",
-      assignedCandidates: newEvaluation.assignedCandidates,
+      assignedCandidates: newEvaluation.assignedCandidates || [],
       createdAt: new Date(),
       accessToken: Math.random().toString(36).substring(2, 15),
     }
@@ -483,20 +399,7 @@ export default function EvaluationsPage() {
     alert(`Cloned evaluation as "${cloned.title}" (mock)`)
   }
 
-  const handleAddCandidate = () => {
-    if (!newCandidate.name.trim() || !newCandidate.email.trim()) return
-
-    const candidate: Candidate = {
-      id: Date.now().toString(),
-      name: newCandidate.name,
-      email: newCandidate.email,
-      status: "pending",
-    }
-
-    setCandidates([...candidates, candidate])
-    setNewCandidate({ name: "", email: "" })
-    setIsAddCandidateOpen(false)
-  }
+  // candidate creation/management moved to /admin/candidates
 
   const handleToggleEvaluationStatus = (evaluationId: string) => {
     setEvaluations(
@@ -578,7 +481,7 @@ export default function EvaluationsPage() {
         evaluation.expiryDate instanceof Date
           ? evaluation.expiryDate.toISOString().split("T")[0]
           : new Date(evaluation.expiryDate).toISOString().split("T")[0],
-      assignedCandidates: evaluation.assignedCandidates,
+  assignedCandidates: evaluation.assignedCandidates || [],
     })
     setIsEditEvaluationOpen(true)
   }
@@ -593,7 +496,8 @@ export default function EvaluationsPage() {
       subjects: newEvaluation.subjects,
       duration: newEvaluation.duration,
       expiryDate: new Date(newEvaluation.expiryDate),
-      assignedCandidates: newEvaluation.assignedCandidates,
+  // keep assignedCandidates unchanged here (managed on Candidates page)
+  assignedCandidates: editingEvaluation.assignedCandidates,
     }
 
     const updatedEvaluations = evaluations.map((evaluationItem) =>
@@ -610,7 +514,7 @@ export default function EvaluationsPage() {
       subjects: [],
       duration: 60,
       expiryDate: "",
-      assignedCandidates: [],
+  assignedCandidates: [],
     })
 
     setSuccessMessage("Evaluation updated successfully!")
@@ -627,7 +531,7 @@ export default function EvaluationsPage() {
       ...template,
       id: Date.now().toString(),
       status: "active",
-      assignedCandidates: templateAssignment.assignedCandidates,
+  assignedCandidates: [],
       expiryDate: new Date(templateAssignment.expiryDate),
       duration: templateAssignment.duration,
       accessToken: `eval_${Math.random().toString(36).substring(2, 11)}`,
@@ -637,7 +541,6 @@ export default function EvaluationsPage() {
     setEvaluations([...evaluations, newEval])
     setSelectedTemplate("")
     setTemplateAssignment({
-      assignedCandidates: [],
       expiryDate: "",
       duration: 60,
     })
@@ -648,12 +551,7 @@ export default function EvaluationsPage() {
   }
 
   const handlePromoteCandidate = (candidateId: string) => {
-    const stored = JSON.parse(localStorage.getItem("candidates") || "[]")
-    const updated = stored.map((c: any) => (c.id === candidateId ? { ...c, role: "employee", status: "employee" } : c))
-    localStorage.setItem("candidates", JSON.stringify(updated))
-    setCandidates(updated)
-    writeAudit(`Candidate promoted to employee: ${candidateId}`)
-    alert("Candidate promoted to employee (mock)")
+  // candidate promotions are handled on the Candidates page
   }
 
   const handleViewEvaluation = (evaluation: Evaluation) => {
@@ -711,84 +609,13 @@ export default function EvaluationsPage() {
         return "bg-gray-100 text-gray-800"
     }
   }
-
-  const handleSendEmail = async (candidateId: string, evaluationUrl: string, evaluationTitle: string) => {
-    setEmailSending([...emailSending, candidateId])
-
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 2000))
-
-      const candidate = candidates.find((c) => c.id === candidateId)
-      if (!candidate) {
-        throw new Error("Candidate not found")
-      }
-
-      const emailContent = `
-        Subject: Evaluation Invitation - ${evaluationTitle}
-        
-        Dear ${candidate.name},
-        
-        You have been invited to take the evaluation: ${evaluationTitle}
-        
-        Please click the following link to start your evaluation:
-        ${evaluationUrl}
-        
-        Best regards,
-        Admin Team
-      `
-
-      console.log("Email sent to:", candidate.email)
-      console.log("Email content:", emailContent)
-
-      setEmailStatus((prev) => ({ ...prev, [candidateId]: "success" }))
-
-      setCandidates((prev) => prev.map((c) => (c.id === candidateId ? { ...c, status: "invited" as const } : c)))
-    } catch (error) {
-      console.error("Failed to send email:", error)
-      setEmailStatus((prev) => ({ ...prev, [candidateId]: "error" }))
-    } finally {
-      setEmailSending((prev) => prev.filter((id) => id !== candidateId))
-    }
-  }
-
-  const handleSendBulkEmails = async (evaluation: Evaluation) => {
-    for (const candidateId of evaluation.assignedCandidates) {
-      const evaluationUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/evaluation/${evaluation.accessToken}`
-      await handleSendEmail(candidateId, evaluationUrl, evaluation.title)
-    }
-  }
-
   const formatDate = (date: Date | string | undefined) => {
     if (!date) return null
     const dateObj = typeof date === "string" ? new Date(date) : date
     return dateObj.toLocaleDateString()
   }
 
-  const handleAssignCandidatesToExisting = (evaluation: Evaluation) => {
-    setEvaluationForAssignment(evaluation)
-    setCandidateAssignment({
-      assignedCandidates: evaluation.assignedCandidates || [],
-    })
-    setIsAssignCandidatesOpen(true)
-  }
-
-  const handleSaveCandidateAssignment = () => {
-    if (!evaluationForAssignment) return
-
-    const updatedEvaluations = evaluations.map((evaluationItem) =>
-      evaluationItem.id === evaluationForAssignment.id
-        ? { ...evaluationItem, assignedCandidates: candidateAssignment.assignedCandidates }
-        : evaluationItem,
-    )
-
-    setEvaluations(updatedEvaluations)
-    setIsAssignCandidatesOpen(false)
-    setEvaluationForAssignment(null)
-    setCandidateAssignment({ assignedCandidates: [] })
-
-    setSuccessMessage(`Candidates assigned to "${evaluationForAssignment.title}" successfully!`)
-    setTimeout(() => setSuccessMessage(""), 3000)
-  }
+  // Candidate assignment and related actions have been moved to /admin/candidates
 
   if (!isAuthenticated) {
     return <div>Loading...</div>
@@ -797,20 +624,26 @@ export default function EvaluationsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Link href="/admin/dashboard">
-              <Button variant="ghost" size="sm">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Dashboard
-              </Button>
-            </Link>
-            <h1 className="text-2xl font-bold text-gray-900">Evaluation Management</h1>
-          </div>
-          <div className="flex items-center space-x-2 px-3 py-1 bg-blue-50 rounded-full">
-            <User className="w-4 h-4 text-blue-600" />
-            <span className="text-sm font-medium text-blue-700">Admin</span>
-            <span className="text-xs text-blue-600">({adminEmail})</span>
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center">
+              <Link href="/admin/dashboard">
+                <Button variant="ghost" size="sm">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to Dashboard
+                </Button>
+              </Link>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Evaluation Management</h1>
+              </div>
+              <div className="flex items-center space-x-2 px-3 py-1 bg-blue-50 rounded-full">
+                <User className="w-4 h-4 text-blue-600" />
+                <span className="text-sm font-medium text-blue-700">Admin</span>
+                <span className="text-xs text-blue-600">({adminEmail})</span>
+              </div>
+            </div>
           </div>
         </div>
       </header>
@@ -836,42 +669,77 @@ export default function EvaluationsPage() {
 
       <div className="container mx-auto px-4 py-8">
         <Tabs defaultValue="evaluations" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="evaluations">Evaluations</TabsTrigger>
-            <TabsTrigger value="candidates">Candidates</TabsTrigger>
-          </TabsList>
+
 
           <TabsContent value="evaluations" className="space-y-6">
             {/* Filters and Search */}
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex flex-col md:flex-row gap-4">
-                  <div className="flex-1">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                      <Input
-                        placeholder="Search evaluations..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
+            <div className="bg-white rounded-lg shadow-sm border p-4">
+              <div className="flex flex-col md:flex-row gap-4 items-center">
+                <div className="flex-1 relative w-full">
+                  <div className="relative flex items-center">
+                    <Search className="absolute left-3 text-gray-400 w-5 h-5" />
+                    <Input
+                      placeholder="Search by title, description..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 py-6 border-gray-200 focus:ring-blue-500"
+                    />
+                    {searchTerm && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="absolute right-2"
+                        onClick={() => setSearchTerm("")}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-full md:w-48">
-                      <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                      <SelectItem value="draft">Draft</SelectItem>
-                      <SelectItem value="expired">Expired</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
-              </CardContent>
-            </Card>
+                <div className="w-full md:w-auto">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-medium text-gray-500 whitespace-nowrap">Status:</span>
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger className="w-full md:w-[180px] border-gray-200">
+                        <SelectValue placeholder="Filter by status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">
+                          <div className="flex items-center">
+                            <CircleIcon className="h-3 w-3 mr-2 text-gray-500" />
+                            All Status
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="active">
+                          <div className="flex items-center">
+                            <CircleIcon className="h-3 w-3 mr-2 text-green-500" />
+                            Active
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="inactive">
+                          <div className="flex items-center">
+                            <CircleIcon className="h-3 w-3 mr-2 text-gray-500" />
+                            Inactive
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="draft">
+                          <div className="flex items-center">
+                            <CircleIcon className="h-3 w-3 mr-2 text-blue-500" />
+                            Draft
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="expired">
+                          <div className="flex items-center">
+                            <CircleIcon className="h-3 w-3 mr-2 text-red-500" />
+                            Expired
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             {/* Evaluations List */}
             <Card>
@@ -1030,118 +898,16 @@ export default function EvaluationsPage() {
 
                       <div>
                         <Label>Assign Candidates</Label>
-                        <div className="mt-2 space-y-2 max-h-32 overflow-y-auto">
-                          {candidates.map((candidate) => (
-                            <div key={candidate.id} className="flex items-center space-x-2">
-                              <Checkbox
-                                checked={newEvaluation.assignedCandidates.includes(candidate.id)}
-                                onCheckedChange={(checked) => {
-                                  if (checked) {
-                                    setNewEvaluation({
-                                      ...newEvaluation,
-                                      assignedCandidates: [...newEvaluation.assignedCandidates, candidate.id],
-                                    })
-                                  } else {
-                                    setNewEvaluation({
-                                      ...newEvaluation,
-                                      assignedCandidates: newEvaluation.assignedCandidates.filter(
-                                        (id) => id !== candidate.id,
-                                      ),
-                                    })
-                                  }
-                                }}
-                              />
-                              <span className="text-sm">
-                                {candidate.name} ({candidate.email})
-                              </span>
-                            </div>
-                          ))}
+                        <div className="mt-2">
+                          <p className="text-sm text-gray-600">Candidate assignment is managed on a separate page.</p>
+                          <Link href="/admin/candidates">
+                            <Button variant="outline" size="sm" className="mt-2">
+                              <Users className="w-4 h-4 mr-2" />
+                              Manage Candidates
+                            </Button>
+                          </Link>
                         </div>
                       </div>
-
-                      {/* Assignment URLs Display */}
-                      {newEvaluation.assignedCandidates.length > 0 && (
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-sm font-medium">Assignment URLs</Label>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                const tempEvaluation = {
-                                  ...newEvaluation,
-                                  id: "temp",
-                                  accessToken: `eval_${Math.random().toString(36).substring(2, 11)}`,
-                                  createdAt: new Date(),
-                                  status: "draft" as const,
-                                  expiryDate: new Date(newEvaluation.expiryDate),
-                                }
-                                handleSendBulkEmails(tempEvaluation)
-                              }}
-                              disabled={emailSending.length > 0}
-                            >
-                              <Mail className="w-4 h-4 mr-1" />
-                              {emailSending.length > 0 ? "Sending..." : "Send All Emails"}
-                            </Button>
-                          </div>
-                          <div className="bg-gray-50 p-3 rounded-lg space-y-2">
-                            <p className="text-xs text-gray-600 mb-2">
-                              These URLs will be shared with assigned candidates:
-                            </p>
-                            {newEvaluation.assignedCandidates.map((candidateId) => {
-                              const candidate = candidates.find((c) => c.id === candidateId)
-                              const evaluationUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/evaluation/eval_${Math.random().toString(36).substring(2, 11)}`
-                              const isEmailSending = emailSending.includes(candidateId)
-                              const emailStatusForCandidate = emailStatus[candidateId]
-
-                              return (
-                                <div
-                                  key={candidateId}
-                                  className="flex items-center justify-between bg-white p-2 rounded border"
-                                >
-                                  <div className="flex-1">
-                                    <p className="text-sm font-medium">{candidate?.name}</p>
-                                    <p className="text-xs text-gray-500">{candidate?.email}</p>
-                                    <p className="text-xs text-blue-600 font-mono break-all">{evaluationUrl}</p>
-                                    {emailStatusForCandidate === "success" && (
-                                      <p className="text-xs text-green-600 mt-1">✓ Email sent successfully</p>
-                                    )}
-                                    {emailStatusForCandidate === "error" && (
-                                      <p className="text-xs text-red-600 mt-1">✗ Failed to send email</p>
-                                    )}
-                                  </div>
-                                  <div className="flex space-x-1">
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => {
-                                        navigator.clipboard.writeText(evaluationUrl)
-                                      }}
-                                    >
-                                      <Copy className="w-3 h-3" />
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleSendEmail(candidateId, evaluationUrl, newEvaluation.title)}
-                                      disabled={isEmailSending}
-                                    >
-                                      {isEmailSending ? (
-                                        <div className="w-3 h-3 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
-                                      ) : (
-                                        <Mail className="w-3 h-3" />
-                                      )}
-                                    </Button>
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )}
 
                       <div className="flex justify-end space-x-2">
                         <Button variant="outline" onClick={() => setIsCreateEvaluationOpen(false)}>
@@ -1283,117 +1049,18 @@ export default function EvaluationsPage() {
                                   </AlertDialogFooter>
                                 </AlertDialogContent>
                               </AlertDialog>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleAssignCandidatesToExisting(evaluation)}
-                                className="mr-2"
-                              >
-                                <Users className="w-4 h-4 mr-1" />
-                                Assign Candidates
-                              </Button>
+                              <Link href="/admin/candidates">
+                                <Button variant="outline" size="sm" className="mr-2">
+                                  <Users className="w-4 h-4 mr-1" />
+                                  Assign Candidates
+                                </Button>
+                              </Link>
                             </div>
                           </div>
                         </CardContent>
                       </Card>
                     ))
                   )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="candidates" className="space-y-6">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Candidates ({candidates.length})</CardTitle>
-                  <CardDescription>Manage candidate accounts and evaluation assignments</CardDescription>
-                </div>
-                <Dialog open={isAddCandidateOpen} onOpenChange={setIsAddCandidateOpen}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Candidate
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Add New Candidate</DialogTitle>
-                      <DialogDescription>Create a new candidate account</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="candidateName">Full Name</Label>
-                        <Input
-                          id="candidateName"
-                          placeholder="Enter candidate's full name"
-                          value={newCandidate.name}
-                          onChange={(e) => setNewCandidate({ ...newCandidate, name: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="candidateEmail">Email Address</Label>
-                        <Input
-                          id="candidateEmail"
-                          type="email"
-                          placeholder="candidate@example.com"
-                          value={newCandidate.email}
-                          onChange={(e) => setNewCandidate({ ...newCandidate, email: e.target.value })}
-                        />
-                      </div>
-                      <div className="flex justify-end space-x-2">
-                        <Button variant="outline" onClick={() => setIsAddCandidateOpen(false)}>
-                          Cancel
-                        </Button>
-                        <Button onClick={handleAddCandidate}>Add Candidate</Button>
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {candidates.map((candidate) => (
-                    <Card key={candidate.id} className="hover:shadow-sm transition-shadow">
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="font-medium">{candidate.name}</h3>
-                            <p className="text-sm text-gray-600">{candidate.email}</p>
-                            {candidate.lastActivity && (
-                              <p className="text-xs text-gray-500">
-                                Last activity: {formatDate(candidate.lastActivity)}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Badge className={getCandidateStatusColor(candidate.status)}>{candidate.status}</Badge>
-                            <Button variant="outline" size="sm">
-                              <Mail className="w-4 h-4 mr-1" />
-                              <span
-                                onClick={() => {
-                                  const evaluation = evaluations.find((e) =>
-                                    e.assignedCandidates.includes(candidate.id),
-                                  )
-                                  if (evaluation) {
-                                    const evaluationUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/evaluation/${evaluation.accessToken}`
-                                    handleSendEmail(candidate.id, evaluationUrl, evaluation.title)
-                                  }
-                                }}
-                                className="cursor-pointer"
-                              >
-                                Send Email
-                              </span>
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => handlePromoteCandidate(candidate.id)}>
-                              Promote
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
                 </div>
               </CardContent>
             </Card>
@@ -1654,104 +1321,16 @@ export default function EvaluationsPage() {
 
               <div>
                 <Label>Assign Candidates</Label>
-                <div className="mt-2 space-y-2 max-h-32 overflow-y-auto">
-                  {candidates.map((candidate) => (
-                    <div key={candidate.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        checked={newEvaluation.assignedCandidates.includes(candidate.id)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setNewEvaluation({
-                              ...newEvaluation,
-                              assignedCandidates: [...newEvaluation.assignedCandidates, candidate.id],
-                            })
-                          } else {
-                            setNewEvaluation({
-                              ...newEvaluation,
-                              assignedCandidates: newEvaluation.assignedCandidates.filter((id) => id !== candidate.id),
-                            })
-                          }
-                        }}
-                      />
-                      <span className="text-sm">
-                        {candidate.name} ({candidate.email})
-                      </span>
-                    </div>
-                  ))}
+                <div className="mt-2">
+                  <p className="text-sm text-gray-600">Manage candidate assignments on the Candidates page.</p>
+                  <Link href="/admin/candidates">
+                    <Button variant="outline" size="sm" className="mt-2">
+                      <Users className="w-4 h-4 mr-2" />
+                      Manage Candidates
+                    </Button>
+                  </Link>
                 </div>
               </div>
-
-              {/* Assignment URLs Display for Edit */}
-              {editingEvaluation && editingEvaluation.assignedCandidates.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">Current Assignment URLs</Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleSendBulkEmails(editingEvaluation)}
-                      disabled={emailSending.length > 0}
-                    >
-                      <Mail className="w-4 h-4 mr-1" />
-                      {emailSending.length > 0 ? "Sending..." : "Send All Emails"}
-                    </Button>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded-lg space-y-2">
-                    <p className="text-xs text-gray-600 mb-2">Active URLs for assigned candidates:</p>
-                    {editingEvaluation.assignedCandidates.map((candidateId) => {
-                      const candidate = candidates.find((c) => c.id === candidateId)
-                      const evaluationUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/evaluation/${editingEvaluation.accessToken}`
-                      const isEmailSending = emailSending.includes(candidateId)
-                      const emailStatusForCandidate = emailStatus[candidateId]
-
-                      return (
-                        <div
-                          key={candidateId}
-                          className="flex items-center justify-between bg-white p-2 rounded border"
-                        >
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">{candidate?.name}</p>
-                            <p className="text-xs text-gray-500">{candidate?.email}</p>
-                            <p className="text-xs text-blue-600 font-mono break-all">{evaluationUrl}</p>
-                            {emailStatusForCandidate === "success" && (
-                              <p className="text-xs text-green-600 mt-1">✓ Email sent successfully</p>
-                            )}
-                            {emailStatusForCandidate === "error" && (
-                              <p className="text-xs text-red-600 mt-1">✗ Failed to send email</p>
-                            )}
-                          </div>
-                          <div className="flex space-x-1">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                navigator.clipboard.writeText(evaluationUrl)
-                              }}
-                            >
-                              <Copy className="w-3 h-3" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleSendEmail(candidateId, evaluationUrl, editingEvaluation.title)}
-                              disabled={isEmailSending}
-                            >
-                              {isEmailSending ? (
-                                <div className="w-3 h-3 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
-                              ) : (
-                                <Mail className="w-3 h-3" />
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
 
               <div className="flex justify-end space-x-2">
                 <Button variant="outline" onClick={() => setIsEditEvaluationOpen(false)}>
@@ -1762,56 +1341,7 @@ export default function EvaluationsPage() {
             </div>
           </DialogContent>
         </Dialog>
-        <Dialog open={isAssignCandidatesOpen} onOpenChange={setIsAssignCandidatesOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Assign Candidates to Evaluation</DialogTitle>
-              <DialogDescription>
-                {evaluationForAssignment && `Select candidates for "${evaluationForAssignment.title}"`}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="max-h-96 overflow-y-auto space-y-2">
-                {candidates.map((candidate) => (
-                  <div key={candidate.id} className="flex items-center space-x-3 p-3 border rounded-lg">
-                    <Checkbox
-                      id={`assign-${candidate.id}`}
-                      checked={candidateAssignment.assignedCandidates.includes(candidate.id)}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setCandidateAssignment({
-                            ...candidateAssignment,
-                            assignedCandidates: [...candidateAssignment.assignedCandidates, candidate.id],
-                          })
-                        } else {
-                          setCandidateAssignment({
-                            ...candidateAssignment,
-                            assignedCandidates: candidateAssignment.assignedCandidates.filter(
-                              (id) => id !== candidate.id,
-                            ),
-                          })
-                        }
-                      }}
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium">{candidate.name}</div>
-                      <div className="text-sm text-gray-500">{candidate.email}</div>
-                    </div>
-                    <Badge variant={candidate.status === "completed" ? "default" : "secondary"}>
-                      {candidate.status}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAssignCandidatesOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleSaveCandidateAssignment}>Assign Selected Candidates</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+  {/* Candidate assignment moved to /admin/candidates */}
       </div>
     </div>
   )
