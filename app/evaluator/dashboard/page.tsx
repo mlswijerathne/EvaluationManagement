@@ -275,17 +275,28 @@ export default function EvaluatorDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {["Mathematics", "Computer Science", "HR Policies"].map((subject) => (
+                  {["React", "Angular", "Spring Boot", "Python", "Node.js"].map((subject) => (
                     <div key={subject} className="flex items-center justify-between p-4 border rounded-lg">
                       <div>
                         <h3 className="font-medium">{subject}</h3>
-                        <p className="text-sm text-gray-500">{Math.floor(Math.random() * 50) + 10} questions</p>
+                        <p className="text-sm text-gray-500">{Math.floor(Math.random() * 50) + 20} questions</p>
                       </div>
                       <div className="flex items-center space-x-2">
                         <Badge variant="secondary">Active</Badge>
-                        <Link href={`#`}>
-                          <Button variant="outline" size="sm">Manage</Button>
-                        </Link>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const auth = typeof window !== 'undefined' ? localStorage.getItem('evaluatorAuth') : null
+                            if (!auth) {
+                              router.push('/login')
+                              return
+                            }
+                            router.push(`/evaluator/questions?bank=${encodeURIComponent(subject)}`)
+                          }}
+                        >
+                          Manage
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -301,25 +312,57 @@ export default function EvaluatorDashboard() {
                   <CardTitle>Evaluations</CardTitle>
                   <CardDescription>Create and manage candidate assessments</CardDescription>
                 </div>
-                <Button onClick={() => alert("Open authoring (mock)") }>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create
-                </Button>
+                <Link href="/evaluator/evaluations">
+                  <Button>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create Evaluation
+                  </Button>
+                </Link>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {evaluations.map((ev) => (
-                    <div key={ev.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div>
-                        <h3 className="font-medium">{ev.title}</h3>
-                        <p className="text-sm text-gray-500">{ev.questions} questions • {ev.duration} minutes</p>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Badge className="bg-green-100 text-green-800">{ev.status || 'Active'}</Badge>
-                        <Button variant="outline" size="sm" onClick={() => handleAssign(ev.id)}>Assign</Button>
-                      </div>
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <h3 className="font-medium">Full Stack Developer Assessment</h3>
+                      <p className="text-sm text-gray-500">React, Node.js, Python • 90 minutes</p>
                     </div>
-                  ))}
+                    <div className="flex items-center space-x-2">
+                      <Badge className="bg-green-100 text-green-800">Active</Badge>
+                      <span className="text-sm text-gray-500">2 candidates</span>
+                      <Link href={`/evaluator/evaluations?eval=${encodeURIComponent("eval-1")}`}>
+                        <Button variant="outline" size="sm">View</Button>
+                      </Link>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <h3 className="font-medium">Frontend Developer - React</h3>
+                      <p className="text-sm text-gray-500">React, Angular • 60 minutes</p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Badge className="bg-green-100 text-green-800">Active</Badge>
+                      <span className="text-sm text-gray-500">1 candidate</span>
+                      <Link href={`/evaluator/evaluations?eval=${encodeURIComponent("eval-2")}`}>
+                        <Button variant="outline" size="sm">View</Button>
+                      </Link>
+                    </div>
+                  </div>
+                  <div className="text-center py-4">
+                    <Button
+                      variant="outline"
+                      className="bg-transparent"
+                      onClick={() => {
+                        const auth = typeof window !== 'undefined' ? localStorage.getItem('evaluatorAuth') : null
+                        if (!auth) {
+                          router.push('/login')
+                          return
+                        }
+                        router.push('/evaluator/evaluations')
+                      }}
+                    >
+                      View All Evaluations
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>

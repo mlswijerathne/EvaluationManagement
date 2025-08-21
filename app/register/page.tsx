@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -10,10 +10,16 @@ import mockApi from "@/lib/mockApi"
 
 export default function RegisterPage() {
   const router = useRouter()
-  const params = useSearchParams()
-  const emailParam = params?.get("email") || "john.doe@students.com"
   const [name, setName] = useState("John Doe")
-  const [email, setEmail] = useState(emailParam)
+  const [email, setEmail] = useState("john.doe@students.com")
+  useEffect(() => {
+    try {
+      const p = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("email") : null
+      if (p) setEmail(p)
+    } catch (e) {
+      // ignore
+    }
+  }, [])
   const [password, setPassword] = useState("")
 
   const handleRegister = async () => {
