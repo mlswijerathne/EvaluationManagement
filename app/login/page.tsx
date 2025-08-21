@@ -38,6 +38,14 @@ export default function LoginPage() {
       localStorage.setItem("userRole", "candidate")
       // Redirect to candidate dashboard or evaluation list
       router.push("/candidate/dashboard")
+    }
+    // Evaluator demo
+    else if (email.includes("evaluator") && password === "evaluator123") {
+      localStorage.setItem("evaluatorAuth", "true")
+      localStorage.setItem("evaluatorEmail", email)
+      localStorage.setItem("userRole", "evaluator")
+      // Evaluators have their own portal
+      router.push("/evaluator/dashboard")
     } else {
       setError("Invalid email or password")
     }
@@ -117,6 +125,9 @@ export default function LoginPage() {
                 </p>
                 <p className="text-xs text-gray-500">
                   <strong>Candidate:</strong> candidate@example.com / candidate123
+                </p>
+                <p className="text-xs text-gray-500">
+                  <strong>Evaluator:</strong> evaluator1@technova.com / evaluator123
                 </p>
               </div>
             </div>

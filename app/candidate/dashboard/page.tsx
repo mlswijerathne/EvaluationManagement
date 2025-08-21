@@ -9,7 +9,7 @@ import { Clock, FileText, CheckCircle, AlertCircle } from "lucide-react"
 
 export default function CandidateDashboard() {
   const [candidateEmail, setCandidateEmail] = useState("")
-  const [evaluations, setEvaluations] = useState([])
+  const [evaluations, setEvaluations] = useState<any[]>([])
   const router = useRouter()
 
   useEffect(() => {

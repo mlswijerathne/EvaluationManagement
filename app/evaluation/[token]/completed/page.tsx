@@ -33,8 +33,8 @@ export default function EvaluationCompleted() {
       duration: 75, // minutes taken out of 90 allowed
       totalQuestions: 5,
       answeredQuestions: 5,
-      score: 85, // Optional - only if results are immediately available
-      showResults: false, // Set to true if admin allows immediate result viewing
+  score: 82, // realistic mock score
+  showResults: true, // show results by default in demo
     }
 
     setTimeout(() => {
@@ -116,13 +116,8 @@ export default function EvaluationCompleted() {
                   <div className="text-3xl font-bold text-green-600">{completionData.score}%</div>
                   <div className="text-sm text-gray-600">
                     <p>Overall Score</p>
-                    <Badge className="bg-green-100 text-green-800">
-                      {completionData.score >= 80
-                        ? "Excellent"
-                        : completionData.score >= 60
-                          ? "Good"
-                          : "Needs Improvement"}
-                    </Badge>
+                    <Badge className="bg-green-100 text-green-800">Pass</Badge>
+                    <p className="mt-2 text-sm text-gray-600">Feedback: Strong understanding of core concepts. Review database section for minor gaps.</p>
                   </div>
                 </div>
               </div>

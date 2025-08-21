@@ -207,6 +207,11 @@ export default function AssessmentInterface() {
     return () => clearInterval(autoSaveInterval)
   }, [autoSave, session])
 
+  // show an initial saved time for demo
+  useEffect(() => {
+    setLastSaved(new Date(Date.now() - 5 * 60 * 1000)) // 5 minutes ago
+  }, [])
+
   // Track time spent on current question
   useEffect(() => {
     setQuestionStartTime(Date.now())
@@ -374,7 +379,7 @@ export default function AssessmentInterface() {
               {lastSaved && (
                 <div className="flex items-center text-sm text-gray-500">
                   <Save className="w-4 h-4 mr-1" />
-                  Saved {lastSaved.toLocaleTimeString()}
+                  Last saved: {lastSaved.toLocaleTimeString()}
                 </div>
               )}
               <div

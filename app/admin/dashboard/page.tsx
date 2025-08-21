@@ -9,11 +9,21 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { BookOpen, Users, FileText, BarChart3, Plus, LogOut, Clock, CheckCircle, User, Home, X } from "lucide-react"
 import Link from "next/link"
+import mockApi from "@/lib/mockApi"
 
 export default function AdminDashboard() {
   const router = useRouter()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [adminEmail, setAdminEmail] = useState("")
+  const [companyName, setCompanyName] = useState<string>(
+    localStorage.getItem("companyName") || "TechNova Pvt Ltd",
+  )
+  const [evaluators, setEvaluators] = useState<string[]>(
+    JSON.parse(localStorage.getItem("evaluators") || "[\"evaluator1@technova.com\", \"evaluator2@technova.com\"]"),
+  )
+  const [auditLogs, setAuditLogs] = useState<string[]>(
+    JSON.parse(localStorage.getItem("auditLogs") || "[\"System initialized: sample data loaded (2025-08-18)\"]"),
+  )
   const [activeTab, setActiveTab] = useState("overview")
   const [showAddCandidateForm, setShowAddCandidateForm] = useState(false)
   const [candidateForm, setCandidateForm] = useState({
@@ -25,11 +35,13 @@ export default function AdminDashboard() {
   useEffect(() => {
     const auth = localStorage.getItem("adminAuth")
     const email = localStorage.getItem("adminEmail") || "admin@example.com"
+    const storedCompany = localStorage.getItem("companyName")
     if (!auth) {
       router.push("/login")
     } else {
       setIsAuthenticated(true)
       setAdminEmail(email)
+      if (storedCompany) setCompanyName(storedCompany)
     }
   }, [router])
 
@@ -52,6 +64,108 @@ export default function AdminDashboard() {
     setShowAddCandidateForm(false)
   }
 
+  const recordAudit = (entry: string) => {
+    const timestamped = `${entry} on ${new Date().toLocaleString()}`
+    const next = [timestamped, ...auditLogs]
+    setAuditLogs(next)
+    localStorage.setItem("auditLogs", JSON.stringify(next))
+  }
+
+  const handleInviteEvaluator = (email?: string) => {
+    // keep backward compatibility when called programmatically
+    const inviteEmail = email
+    if (!inviteEmail) return
+    if (evaluators.includes(inviteEmail)) {
+      alert("Evaluator already invited")
+      return
+    }
+    const next = [...evaluators, inviteEmail]
+    setEvaluators(next)
+    localStorage.setItem("evaluators", JSON.stringify(next))
+    recordAudit(`Admin invited evaluator ${inviteEmail}`)
+    alert(`Invitation sent to ${inviteEmail} (mock)`)
+  }
+
+  const handleInviteEvaluatorApi = async () => {
+    const email = prompt("Evaluator email to invite")
+    if (!email) return
+    const res = await mockApi.inviteEvaluator(email, adminEmail)
+    if (!res.ok) {
+      alert(`Invite failed: ${res.reason || "unknown"}`)
+      return
+    }
+    // refresh local evaluators list from mock storage
+    setEvaluators(JSON.parse(localStorage.getItem("evaluators") || "[]"))
+    recordAudit(`Admin invited evaluator ${email} (via API)`) 
+    alert(`Invitation sent to ${email} (mock) - link: ${res.inviteLink}`)
+  }
+
+  const handleRegisterCompany = () => {
+  const name = prompt("Company name", companyName) || companyName
+  const email = prompt("Your admin email", adminEmail || "admin@example.com") || adminEmail
+  setCompanyName(name)
+  localStorage.setItem("companyName", name)
+  // call mock api register
+  mockApi.registerCompanyAdmin(name, email).then((r) => {
+    if (r.ok) {
+      // store admin email locally, but require verification flow
+      localStorage.setItem("adminEmail", email)
+      localStorage.setItem("adminAuth", "pending_verification")
+      recordAudit(`Company registered: ${name} (admin ${email} created, verification sent)`)
+      alert(`Company registered. A verification email was sent to ${email} (mock). Check 'sent emails' for token.`)
+    } else {
+      alert(`Register failed: ${r.reason}`)
+    }
+  })
+  }
+
+  const handleDeleteCompany = () => {
+    const confirmed = window.confirm(
+      "Delete company and ALL data? This will remove evaluations, questions, candidates, evaluators and logs.",
+    )
+    if (!confirmed) return
+    // call mock API to record deletion snapshot and clear storage
+    mockApi.deleteCompany(adminEmail).then(() => {
+      setEvaluators([])
+      setCompanyName("")
+      setAuditLogs([`Company data deleted by ${adminEmail}`])
+      localStorage.removeItem("adminAuth")
+      localStorage.removeItem("adminEmail")
+      alert("Company and all data removed (mock)")
+    })
+  }
+
+  const handleExportAll = () => {
+    // Export evaluations and questions as CSV files (mock)
+    try {
+      mockApi.exportAllAsJsonBlob().then(({ filename, json }) => {
+        const blob = new Blob([json], { type: "application/json;charset=utf-8;" })
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = filename
+        a.click()
+        window.URL.revokeObjectURL(url)
+        recordAudit("Admin exported all data (json)")
+      })
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const handleShowSentEmails = () => {
+    const sent = JSON.parse(localStorage.getItem("sentEmails") || "[]")
+    if (!sent.length) return alert("No sent emails (mock)")
+    const text = sent.map((s: any) => `${s.to} — ${s.subject}\n${s.body}\n---`).join("\n")
+    alert(text)
+  }
+
+  const handleSearchAudit = async () => {
+    const q = prompt("Search audit logs (substring)")
+    const results = await mockApi.searchAuditLogs({ q: q || undefined })
+    setAuditLogs(results)
+  }
+
   if (!isAuthenticated) {
     return <div>Loading...</div>
   }
@@ -61,7 +175,8 @@ export default function AdminDashboard() {
     { id: "questions", label: "Questions", icon: BookOpen },
     { id: "evaluations", label: "Evaluations", icon: FileText },
     { id: "candidates", label: "Candidates", icon: Users },
-    { id: "results", label: "Results", icon: BarChart3 },
+  { id: "results", label: "Results", icon: BarChart3 },
+  { id: "company", label: "Company", icon: Home },
   ]
 
   return (
@@ -487,6 +602,102 @@ export default function AdminDashboard() {
                         <span className="text-sm text-gray-500">55min</span>
                       </div>
                     </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeTab === "company" && (
+            <Card>
+              <CardHeader className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Company Settings</CardTitle>
+                  <CardDescription>Manage company, evaluators and audit logs</CardDescription>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button variant="outline" onClick={() => handleRegisterCompany()}>
+                    Register / Edit Company
+                  </Button>
+                  <Button variant="outline" onClick={() => handleInviteEvaluator()}>
+                    Invite Evaluator
+                  </Button>
+                  <Button variant="outline" onClick={handleExportAll}>
+                    Export Data
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <h3 className="font-medium">Company</h3>
+                    <p className="text-sm text-gray-600">{companyName || "(Not registered)"}</p>
+                    <div className="mt-3 flex gap-2">
+                      <Button variant="outline" onClick={() => {
+                        const name = prompt('Company name', companyName) || companyName
+                        setCompanyName(name)
+                        localStorage.setItem('companyName', name)
+                        recordAudit(`Company registered: ${name}`)
+                      }}>Register / Edit Company</Button>
+                    </div>
+                  </div>
+
+                  <div className="p-4 border rounded-lg">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-medium">Evaluators</h4>
+                      <span className="text-sm text-gray-500">{evaluators.length} invited</span>
+                    </div>
+
+                    <div className="mb-3">
+                      <label className="text-sm font-medium">Invite evaluator</label>
+                      <div className="mt-2 flex gap-2">
+                        <Input id="inviteEmail" placeholder="evaluator@example.com" />
+                        <Button onClick={() => {
+                          const el = (document.getElementById('inviteEmail') as HTMLInputElement)
+                          if (!el || !el.value) return alert('Enter email')
+                          handleInviteEvaluator(el.value.trim())
+                          el.value = ''
+                        }}>Send Invite</Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      {evaluators.map((e) => (
+                        <div key={e} className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium">{e.split("@")[0]}</p>
+                            <p className="text-xs text-gray-500">{e}</p>
+                          </div>
+                          <div className="text-sm text-gray-500">Invited</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="p-4 border rounded-lg">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-medium">Audit Logs</h4>
+                      <Button variant="ghost" size="sm" onClick={() => { setAuditLogs([]); localStorage.removeItem('auditLogs') }}>
+                        Clear
+                      </Button>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto space-y-2 text-xs text-gray-600">
+                      {auditLogs.length === 0 ? (
+                        <p className="text-gray-400">No audit logs yet.</p>
+                      ) : (
+                        auditLogs.map((log, idx) => (
+                          <div key={idx} className="p-2 bg-white rounded border">
+                            {log}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button variant="destructive" onClick={handleDeleteCompany}>
+                      Delete Company (all data)
+                    </Button>
                   </div>
                 </div>
               </CardContent>

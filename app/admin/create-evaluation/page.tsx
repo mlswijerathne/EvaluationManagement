@@ -270,7 +270,7 @@ export default function CreateEvaluationPage() {
 
     setSuccessMessage(`Evaluation "${evaluation.title}" created successfully!`)
     setTimeout(() => {
-      router.push("/admin/portal")
+      router.push("/admin/dashboard")
     }, 1500)
   }
 
@@ -283,7 +283,7 @@ export default function CreateEvaluationPage() {
       <header className="bg-white border-b">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <Link href="/admin/portal">
+            <Link href="/admin/dashboard">
               <Button variant="outline" size="sm">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Dashboard

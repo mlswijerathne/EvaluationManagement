@@ -1,11 +1,22 @@
 "use client"
 
 import Link from "next/link"
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { BookOpen, Users, BarChart3 } from "lucide-react"
 
 export default function HomePage() {
+  const router = useRouter()
+
+  useEffect(() => {
+    const role = localStorage.getItem("userRole")
+    if (role === "admin") router.push("/admin/dashboard")
+    else if (role === "evaluator") router.push("/evaluator/dashboard")
+    else if (role === "candidate") router.push("/candidate/dashboard")
+  }, [])
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-16">

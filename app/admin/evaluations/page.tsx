@@ -95,6 +95,9 @@ export default function EvaluationsPage() {
     { subject: "Python", questionCount: 35 },
     { subject: "Node.js", questionCount: 18 },
   ])
+  const [groups, setGroups] = useState(() =>
+    JSON.parse(localStorage.getItem("groups") || "[\"Batch 2025\", \"Interns Q3\"]"),
+  )
 
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -191,6 +194,13 @@ export default function EvaluationsPage() {
       loadMockData()
     }
   }, [router])
+
+  // Simple audit writer used by this page
+  const writeAudit = (entry: string) => {
+    const logs = JSON.parse(localStorage.getItem("auditLogs") || "[]")
+    const next = [`${entry} on ${new Date().toLocaleString()}`, ...logs]
+    localStorage.setItem("auditLogs", JSON.stringify(next))
+  }
 
   // Load data from localStorage
   useEffect(() => {
@@ -436,6 +446,8 @@ export default function EvaluationsPage() {
     setEvaluations(updatedEvaluations)
     localStorage.setItem("evaluations", JSON.stringify(updatedEvaluations))
 
+  writeAudit(`Evaluation created: ${evaluation.title}`)
+
     // Reset form
     setNewEvaluation({
       title: "",
@@ -449,6 +461,26 @@ export default function EvaluationsPage() {
 
     setSuccessMessage(`Evaluation "${evaluation.title}" created successfully!`)
     setTimeout(() => setSuccessMessage(""), 3000)
+  }
+
+  const cloneEvaluation = (evaluation: Evaluation) => {
+    const baseVersionMatch = evaluation.title.match(/\(v(\d+)\)$/)
+    const currentVersion = baseVersionMatch ? Number(baseVersionMatch[1]) : 1
+    const newVersion = currentVersion + 1
+    const cloned: Evaluation = {
+      ...evaluation,
+      id: Date.now().toString(),
+      title: `${evaluation.title.replace(/\s*\(v\d+\)$/, "")} (v${newVersion})`,
+      status: "draft",
+      accessToken: `eval_${Math.random().toString(36).substring(2, 11)}`,
+      createdAt: new Date(),
+    }
+
+    const updated = [...evaluations, cloned]
+    setEvaluations(updated)
+    localStorage.setItem("evaluations", JSON.stringify(updated))
+    writeAudit(`Evaluation cloned: ${evaluation.title} → ${cloned.title}`)
+    alert(`Cloned evaluation as "${cloned.title}" (mock)`)
   }
 
   const handleAddCandidate = () => {
@@ -613,6 +645,15 @@ export default function EvaluationsPage() {
 
     setSuccessMessage(`Pre-built evaluation "${newEval.title}" assigned successfully!`)
     setTimeout(() => setSuccessMessage(""), 3000)
+  }
+
+  const handlePromoteCandidate = (candidateId: string) => {
+    const stored = JSON.parse(localStorage.getItem("candidates") || "[]")
+    const updated = stored.map((c: any) => (c.id === candidateId ? { ...c, role: "employee", status: "employee" } : c))
+    localStorage.setItem("candidates", JSON.stringify(updated))
+    setCandidates(updated)
+    writeAudit(`Candidate promoted to employee: ${candidateId}`)
+    alert("Candidate promoted to employee (mock)")
   }
 
   const handleViewEvaluation = (evaluation: Evaluation) => {
@@ -1214,6 +1255,11 @@ export default function EvaluationsPage() {
                                 View Details
                               </Button>
 
+                              <Button variant="outline" size="sm" onClick={() => cloneEvaluation(evaluation)}>
+                                <Copy className="w-4 h-4 mr-1" />
+                                Clone
+                              </Button>
+
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button variant="outline" size="sm">
@@ -1339,6 +1385,9 @@ export default function EvaluationsPage() {
                               >
                                 Send Email
                               </span>
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handlePromoteCandidate(candidate.id)}>
+                              Promote
                             </Button>
                           </div>
                         </div>
