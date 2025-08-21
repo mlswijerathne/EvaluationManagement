@@ -346,6 +346,47 @@ export const mockApi = {
     safeStorage.setItem("candidateAttempts", JSON.stringify(store))
     return sample
   },
+  // Save or append a candidate attempt record
+  saveCandidateAttempt: async (email: string, attempt: any) => {
+    const store = JSON.parse(safeStorage.getItem("candidateAttempts") || "{}")
+    const attempts = store[email] || []
+    attempts.unshift(attempt)
+    store[email] = attempts
+    safeStorage.setItem("candidateAttempts", JSON.stringify(store))
+    const logs = JSON.parse(safeStorage.getItem("auditLogs") || "[]")
+    logs.unshift(`Candidate attempt saved: ${email} for ${attempt.evaluationId} on ${new Date().toLocaleString()}`)
+    safeStorage.setItem("auditLogs", JSON.stringify(logs))
+    return { ok: true, id: attempt.id }
+  },
+  // Share detailed feedback with a candidate (stores feedback and sends a mock email)
+  shareFeedback: async (candidateEmail: string, evaluationId: string, feedback: string, from: string) => {
+    const store = JSON.parse(safeStorage.getItem("candidateFeedbacks") || "{}")
+    const list = store[candidateEmail] || []
+    const record = { id: Date.now().toString(), evaluationId, feedback, from, sentAt: new Date().toISOString() }
+    list.unshift(record)
+    store[candidateEmail] = list
+    safeStorage.setItem("candidateFeedbacks", JSON.stringify(store))
+
+    // persist as a sent email for dev visibility
+    const sent = JSON.parse(safeStorage.getItem("sentEmails") || "[]")
+    const subject = `Feedback for ${evaluationId}`
+    const body = `Hello,\n\nYou have received feedback for evaluation ${evaluationId}:\n\n${feedback}\n\nFrom: ${from}`
+    sent.push({ to: candidateEmail, subject, body, sentAt: new Date().toISOString() })
+    safeStorage.setItem("sentEmails", JSON.stringify(sent))
+
+    // attempt to 'send' via mock email helper
+    try {
+      await sendMockEmail(candidateEmail, subject, body)
+    } catch (e) {
+      // ignore errors in mock
+    }
+
+    const logs = JSON.parse(safeStorage.getItem("auditLogs") || "[]")
+    logs.unshift(`Feedback shared: ${candidateEmail} for ${evaluationId} by ${from} on ${new Date().toLocaleString()}`)
+    safeStorage.setItem("auditLogs", JSON.stringify(logs))
+
+    return { ok: true, record }
+  },
   // Questions management helpers
   getQuestions: async () => {
     return JSON.parse(safeStorage.getItem("questions") || "[]")

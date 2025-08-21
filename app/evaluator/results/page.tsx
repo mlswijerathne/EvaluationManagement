@@ -17,6 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { toast, useToast } from "@/hooks/use-toast"
 import { ArrowLeft, Search, Download, Eye, TrendingUp, Users, Award, Clock, BarChart3, User } from "lucide-react"
 import Link from "next/link"
 
@@ -57,6 +58,8 @@ export default function ResultsPage() {
   const [evaluationFilter, setEvaluationFilter] = useState<string>("")
   const [statusFilter, setStatusFilter] = useState<string>("")
   const [selectedResult, setSelectedResult] = useState<CandidateResult | null>(null)
+  const { toast: showToast } = useToast()
+  const [feedbackText, setFeedbackText] = useState("")
 
   useEffect(() => {
     // Accept evaluator auth or fall back to admin auth (useful in dev)
@@ -495,6 +498,45 @@ export default function ResultsPage() {
                                       <p className="text-sm">{c.score} / {c.total}</p>
                                     </div>
                                   ))}
+                                </div>
+                              </div>
+                              <div className="mt-4">
+                                <p className="font-medium mb-2">Share detailed feedback</p>
+                                <textarea
+                                  value={feedbackText}
+                                  onChange={(e) => setFeedbackText(e.target.value)}
+                                  placeholder="Write constructive, specific feedback for the candidate..."
+                                  className="w-full border rounded p-2 text-sm"
+                                  rows={5}
+                                />
+                                <div className="mt-3 flex justify-end space-x-2">
+                                  <Button
+                                    variant="ghost"
+                                    onClick={() => {
+                                      setFeedbackText("")
+                                    }}
+                                  >
+                                    Clear
+                                  </Button>
+                                  <Button
+                                    onClick={async () => {
+                                      try {
+                                        const { mockApi } = await import("@/lib/mockApi")
+                                        const from = localStorage.getItem("evaluatorEmail") || "evaluator@example.com"
+                                        const resp = await mockApi.shareFeedback(result.candidateEmail, result.evaluationId, feedbackText, from)
+                                        if (resp?.ok) {
+                                          showToast({ title: "Feedback shared", description: "Candidate has been notified." })
+                                          setFeedbackText("")
+                                        } else {
+                                          showToast({ title: "Failed to share", description: "Unable to share feedback." })
+                                        }
+                                      } catch (e) {
+                                        showToast({ title: "Error", description: "An error occurred while sharing feedback." })
+                                      }
+                                    }}
+                                  >
+                                    Share Feedback
+                                  </Button>
                                 </div>
                               </div>
                             </div>

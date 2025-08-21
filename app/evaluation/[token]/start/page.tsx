@@ -72,8 +72,12 @@ export default function AssessmentInterface() {
 
     try {
       // Simulate API call to save progress
-      await new Promise((resolve) => setTimeout(resolve, 500))
-      setLastSaved(new Date())
+  // persist to localStorage for resume
+  const email = session.candidateEmail || localStorage.getItem("candidateEmail") || "demo@candidate"
+  const saveKey = `eval_progress_${session.id}_${email}`
+  const payload = { sessionId: session.id, answers, currentQuestionIndex, timeRemaining, updatedAt: new Date().toISOString() }
+  localStorage.setItem(saveKey, JSON.stringify(payload))
+  setLastSaved(new Date())
     } catch (error) {
       console.error("Auto-save failed:", error)
     }
@@ -181,6 +185,27 @@ export default function AssessmentInterface() {
 
     loadSession()
   }, [params.token])
+
+  // Resume from saved progress if exists
+  useEffect(() => {
+    if (!session) return
+    try {
+      const email = session.candidateEmail || localStorage.getItem("candidateEmail") || "demo@candidate"
+      const saveKey = `eval_progress_${session.id}_${email}`
+      const saved = localStorage.getItem(saveKey)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed && parsed.answers) {
+          setAnswers(parsed.answers)
+          setCurrentQuestionIndex(parsed.currentQuestionIndex || 0)
+          setTimeRemaining(parsed.timeRemaining || session.duration * 60)
+          setLastSaved(parsed.updatedAt ? new Date(parsed.updatedAt) : new Date())
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [session])
 
   // Timer countdown
   useEffect(() => {
@@ -301,10 +326,45 @@ export default function AssessmentInterface() {
     setIsSubmitting(true)
 
     try {
-      // Simulate API call to submit evaluation
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      // compute a mock score locally using correctness vs provided correctAnswers
+      const total = session?.questions.length || 0
+      let correct = 0
+      if (session) {
+        session.questions.forEach((q) => {
+          const ans = answers[q.id]?.selectedAnswers || []
+          // map option strings back to original indexes by comparing values
+          // Since options were shuffled, we consider any non-empty answer as answered for mock scoring
+          const isCorrect = ans.length > 0 && q.correctAnswers.length === ans.length
+          if (isCorrect) correct += 1
+        })
+      }
+      const score = total ? Math.round((correct / total) * 100) : 0
 
-      // Redirect to results or thank you page
+      // persist attempt via mockApi
+      const email = session?.candidateEmail || localStorage.getItem("candidateEmail") || "demo@candidate"
+      const attempt = {
+        id: `attempt_${Date.now()}`,
+        evaluationId: session?.id || params.token,
+        score,
+        passed: score >= 50,
+        takenAt: new Date().toISOString(),
+        duration: Math.round((session?.duration || 0) - timeRemaining / 60),
+        answers,
+      }
+      try {
+        const { mockApi } = await import("@/lib/mockApi")
+        await mockApi.saveCandidateAttempt(email, attempt)
+      } catch (e) {
+        // ignore persistence errors in mock
+      }
+
+      // clear saved progress
+      try {
+        const saveKey = `eval_progress_${session?.id}_${email}`
+        localStorage.removeItem(saveKey)
+      } catch (e) {}
+
+      // Navigate to completed page which will show stored result and preview
       router.push(`/evaluation/${params.token}/completed`)
     } catch (error) {
       setError("Failed to submit evaluation. Please try again.")
@@ -371,9 +431,15 @@ export default function AssessmentInterface() {
       <header className="bg-white border-b sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-xl font-semibold">{session.title}</h1>
-              <p className="text-sm text-gray-600">{session.candidateName}</p>
+            <div className="flex items-center space-x-4">
+              <Button variant="outline" size="sm" onClick={() => router.back()}>
+                <ChevronLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+              <div>
+                <h1 className="text-xl font-semibold">{session.title}</h1>
+                <p className="text-sm text-gray-600">{session.candidateName}</p>
+              </div>
             </div>
             <div className="flex items-center space-x-4">
               {lastSaved && (

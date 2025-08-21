@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
+import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, BarChart3 } from "lucide-react"
+import { CheckCircle, BarChart3, ArrowLeft } from "lucide-react"
 
 interface CompletionData {
   evaluationTitle: string
@@ -23,28 +24,50 @@ export default function EvaluationCompleted() {
   const router = useRouter()
   const [completionData, setCompletionData] = useState<CompletionData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [attemptDetails, setAttemptDetails] = useState<any | null>(null)
 
   useEffect(() => {
-    // Mock completion data - replace with real API call
-    const mockData: CompletionData = {
-      evaluationTitle: "Full Stack Developer Assessment",
-      candidateName: "John Doe",
-      completedAt: new Date(),
-      duration: 75, // minutes taken out of 90 allowed
-      totalQuestions: 5,
-      answeredQuestions: 5,
-  score: 82, // realistic mock score
-  showResults: true, // show results by default in demo
-    }
+    ;(async () => {
+      // show a quick loading state then query mockApi for latest attempt for this token
+      try {
+        const email = localStorage.getItem("candidateEmail") || "demo@candidate"
+        const { mockApi } = await import("@/lib/mockApi")
+        const attempts = await mockApi.getCandidateAttempts(email)
+        const latest = (attempts || []).find((a: any) => a.evaluationId === params.token) || attempts?.[0]
 
-    setTimeout(() => {
-      setCompletionData(mockData)
-      setIsLoading(false)
-    }, 1000)
+        const mockData: CompletionData = {
+          evaluationTitle: "Full Stack Developer Assessment",
+          candidateName: "John Doe",
+          completedAt: latest ? new Date(latest.takenAt) : new Date(),
+          duration: latest ? latest.duration : 75,
+          totalQuestions: latest?.answers ? Object.keys(latest.answers).length : 5,
+          answeredQuestions: latest?.answers ? Object.values(latest.answers).filter((ans: any) => ans.selectedAnswers.length > 0).length : 5,
+          score: latest?.score,
+          showResults: true,
+        }
+
+        setAttemptDetails(latest || null)
+        setCompletionData(mockData)
+      } catch (e) {
+        // fallback
+        setCompletionData({
+          evaluationTitle: "Full Stack Developer Assessment",
+          candidateName: "John Doe",
+          completedAt: new Date(),
+          duration: 75,
+          totalQuestions: 5,
+          answeredQuestions: 5,
+          score: 82,
+          showResults: true,
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    })()
   }, [params.token])
 
   const handleBackToHome = () => {
-    router.push("/candidate/dashboard")
+    router.back()
   }
 
   if (isLoading) {
@@ -116,8 +139,13 @@ export default function EvaluationCompleted() {
                   <div className="text-3xl font-bold text-green-600">{completionData.score}%</div>
                   <div className="text-sm text-gray-600">
                     <p>Overall Score</p>
-                    <Badge className="bg-green-100 text-green-800">Pass</Badge>
-                    <p className="mt-2 text-sm text-gray-600">Feedback: Strong understanding of core concepts. Review database section for minor gaps.</p>
+                    <Badge className={` ${completionData.score >= 50 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {completionData.score >= 50 ? 'Pass' : 'Fail'}
+                    </Badge>
+                    <p className="mt-2 text-sm text-gray-600">Feedback: {attemptDetails?.feedback || 'Strong understanding of core concepts. Review database section for minor gaps.'}</p>
+                    {attemptDetails && (
+                      <div className="mt-3 text-xs text-gray-500">Submitted at: {new Date(attemptDetails.takenAt).toLocaleString()}</div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -125,9 +153,12 @@ export default function EvaluationCompleted() {
 
             <div className="text-center pt-4">
               <p className="text-sm text-gray-500 mb-4">Evaluation ID: {params.token}</p>
-              <Button onClick={handleBackToHome} className="bg-green-600 hover:bg-green-700">
-                Back to Home
-              </Button>
+              <Link href="/candidate/dashboard">
+                <Button className="bg-green-600 hover:bg-green-700">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to Dashboard
+                </Button>
+              </Link>
             </div>
           </CardContent>
         </Card>
