@@ -401,6 +401,13 @@ export default function EvaluatorDashboard() {
                     <p className="text-sm text-gray-600">Average Score</p>
                   </div>
                 </div>
+                <div className="mt-4 flex justify-end">
+                  <Link href="/evaluator/results">
+                    <Button>
+                      View Full Results
+                    </Button>
+                  </Link>
+                </div>
                 <div className="mt-4">
                   <p className="text-sm text-gray-600">Select a candidate from the Candidates panel to view attempt history and detailed analytics (mock).</p>
                   {selectedCandidate ? (
