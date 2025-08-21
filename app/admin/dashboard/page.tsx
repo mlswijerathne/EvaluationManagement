@@ -15,9 +15,7 @@ export default function AdminDashboard() {
   const router = useRouter()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [adminEmail, setAdminEmail] = useState("")
-  const [companyName, setCompanyName] = useState<string>(
-    "TechNova Pvt Ltd",
-  )
+  const [companyName, setCompanyName] = useState<string>("TechNova Pvt Ltd")
   const [evaluators, setEvaluators] = useState<string[]>([])
   const [candidatesList, setCandidatesList] = useState<any[]>([])
   const [auditLogs, setAuditLogs] = useState<string[]>(["System initialized: sample data loaded (2025-08-18)"])
@@ -30,9 +28,9 @@ export default function AdminDashboard() {
   })
 
   useEffect(() => {
-    const auth = localStorage.getItem("adminAuth")
-    const email = localStorage.getItem("adminEmail") || "admin@example.com"
-    const storedCompany = localStorage.getItem("companyName")
+    const auth = typeof window !== 'undefined' ? localStorage.getItem("adminAuth") : null
+    const email = typeof window !== 'undefined' ? (localStorage.getItem("adminEmail") || "admin@example.com") : "admin@example.com"
+    const storedCompany = typeof window !== 'undefined' ? localStorage.getItem('companyName') : null
     if (!auth) {
       router.push("/login")
     } else {
@@ -41,19 +39,19 @@ export default function AdminDashboard() {
       if (storedCompany) setCompanyName(storedCompany)
       // safely hydrate client-only data
       try {
-        const ev = JSON.parse(localStorage.getItem("evaluators") || "[]")
+        const ev = JSON.parse(typeof window !== 'undefined' ? (localStorage.getItem("evaluators") || "[]") : '[]')
         setEvaluators(Array.isArray(ev) ? ev : [])
       } catch (e) {
         setEvaluators([])
       }
       try {
-        const logs = JSON.parse(localStorage.getItem("auditLogs") || "[]")
+        const logs = JSON.parse(typeof window !== 'undefined' ? (localStorage.getItem("auditLogs") || "[]") : '[]')
         setAuditLogs(Array.isArray(logs) && logs.length ? logs : ["System initialized: sample data loaded (2025-08-18)"])
       } catch (e) {
         // keep default
       }
       try {
-        const c = JSON.parse(localStorage.getItem("candidates") || "[]")
+        const c = JSON.parse(typeof window !== 'undefined' ? (localStorage.getItem("candidates") || "[]") : '[]')
         setCandidatesList(Array.isArray(c) ? c : [])
       } catch (e) {
         setCandidatesList([])

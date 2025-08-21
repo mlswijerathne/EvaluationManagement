@@ -13,17 +13,19 @@ export default function AdminCandidatesPage() {
   const router = useRouter()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [adminEmail, setAdminEmail] = useState("")
-  const [companyName, setCompanyName] = useState<string>(localStorage.getItem("companyName") || "TechNova Pvt Ltd")
+  const [companyName, setCompanyName] = useState<string>("TechNova Pvt Ltd")
   const [candidates, setCandidates] = useState<any[]>([])
 
   useEffect(() => {
-    const auth = localStorage.getItem("adminAuth")
-    const email = localStorage.getItem("adminEmail") || "admin@example.com"
+    const auth = typeof window !== 'undefined' ? localStorage.getItem("adminAuth") : null
+    const email = typeof window !== 'undefined' ? (localStorage.getItem("adminEmail") || "admin@example.com") : "admin@example.com"
+    const storedCompany = typeof window !== 'undefined' ? localStorage.getItem('companyName') : null
     if (!auth) router.push('/login')
     else {
       setIsAuthenticated(true)
       setAdminEmail(email)
-      try { setCandidates(JSON.parse(localStorage.getItem('candidates') || '[]')) } catch(e) { setCandidates([]) }
+      if (storedCompany) setCompanyName(storedCompany)
+      try { setCandidates(JSON.parse(typeof window !== 'undefined' ? (localStorage.getItem('candidates') || '[]') : '[]')) } catch(e) { setCandidates([]) }
     }
   }, [router])
 
