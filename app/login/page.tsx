@@ -57,10 +57,21 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="mb-8">
-          <Link href="/" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900">
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                localStorage.removeItem("userRole")
+              } catch (e) {
+                // ignore
+              }
+              router.push("/")
+            }}
+            className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900"
+          >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Home
-          </Link>
+          </button>
         </div>
 
         <Card>

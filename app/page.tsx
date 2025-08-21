@@ -42,6 +42,13 @@ export default function HomePage() {
                   Sign In
                 </Button>
               </Link>
+              <div className="mt-3">
+                <Link href="/register/company">
+                  <Button variant="outline" size="sm" className="w-full">
+                    Register Company
+                  </Button>
+                </Link>
+              </div>
             </CardContent>
           </Card>
         </div>
