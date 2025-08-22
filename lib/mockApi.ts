@@ -339,8 +339,32 @@ export const mockApi = {
 
     // generate sample attempts if none exist
     const sample = [
-      { id: `a-${Date.now()}-1`, evaluationId: "ev-1", score: 78, passed: true, takenAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10).toISOString(), duration: 55 },
-      { id: `a-${Date.now()}-2`, evaluationId: "ev-2", score: 65, passed: false, takenAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(), duration: 22 },
+      { 
+        id: `a-${Date.now()}-1`, 
+        evaluationId: "ev-1", 
+        score: 78, 
+        passed: true, 
+        takenAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10).toISOString(), 
+        duration: 55,
+        areaScores: [
+          { name: "Technical Skills", score: 85 },
+          { name: "Communication", score: 72 },
+          { name: "Problem Solving", score: 80 }
+        ]
+      },
+      { 
+        id: `a-${Date.now()}-2`, 
+        evaluationId: "ev-2", 
+        score: 65, 
+        passed: false, 
+        takenAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(), 
+        duration: 22,
+        areaScores: [
+          { name: "Technical Skills", score: 60 },
+          { name: "Communication", score: 65 },
+          { name: "Problem Solving", score: 70 }
+        ]
+      },
     ]
     store[email] = sample
     safeStorage.setItem("candidateAttempts", JSON.stringify(store))

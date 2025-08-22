@@ -25,6 +25,7 @@ export default function EvaluationCompleted() {
   const [completionData, setCompletionData] = useState<CompletionData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [attemptDetails, setAttemptDetails] = useState<any | null>(null)
+  const [areaScores, setAreaScores] = useState<Array<{ name: string; score: number }>>([])
 
   useEffect(() => {
     ;(async () => {
@@ -48,6 +49,11 @@ export default function EvaluationCompleted() {
 
         setAttemptDetails(latest || null)
         setCompletionData(mockData)
+        
+        // Set area scores if available
+        if (latest && latest.areaScores) {
+          setAreaScores(latest.areaScores);
+        }
       } catch (e) {
         // fallback
         setCompletionData({
@@ -60,6 +66,13 @@ export default function EvaluationCompleted() {
           score: 82,
           showResults: true,
         })
+        
+        // Set fallback area scores
+        setAreaScores([
+          { name: "Technical Skills", score: 85 },
+          { name: "Communication", score: 75 },
+          { name: "Problem Solving", score: 80 }
+        ])
       } finally {
         setIsLoading(false)
       }
@@ -148,6 +161,38 @@ export default function EvaluationCompleted() {
                     )}
                   </div>
                 </div>
+                
+                {areaScores.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-green-200">
+                    <h4 className="font-medium mb-3 text-sm">Area Performance Breakdown</h4>
+                    <div className="space-y-4">
+                      {areaScores.map((area, idx) => (
+                        <div key={idx}>
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="font-medium">{area.name}</span>
+                            <span className="font-semibold">{area.score}%</span>
+                          </div>
+                          <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full ${
+                                area.score >= 80 ? 'bg-green-600' : 
+                                area.score >= 70 ? 'bg-blue-600' : 
+                                area.score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                              }`} 
+                              style={{ width: `${area.score}%` }}
+                            ></div>
+                          </div>
+                          <div className="mt-1 text-xs text-gray-500">
+                            {area.score >= 80 && 'Excellent performance'}
+                            {area.score >= 70 && area.score < 80 && 'Good performance'}
+                            {area.score >= 60 && area.score < 70 && 'Satisfactory performance'}
+                            {area.score < 60 && 'Needs improvement'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

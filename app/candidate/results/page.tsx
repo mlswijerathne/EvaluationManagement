@@ -8,8 +8,24 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { BarChart3, FileText, ArrowLeft } from "lucide-react"
 
+interface AreaScore {
+  name: string;
+  score: number;
+}
+
+interface Attempt {
+  id: string;
+  evaluationId: string;
+  score: number;
+  passed: boolean;
+  takenAt: string;
+  duration: number;
+  feedback?: string;
+  areaScores?: AreaScore[];
+}
+
 export default function CandidateResultsPortal() {
-  const [attempts, setAttempts] = useState<any[]>([])
+  const [attempts, setAttempts] = useState<Attempt[]>([])
   const [loading, setLoading] = useState(true)
   const [candidateEmail, setCandidateEmail] = useState<string>("guest")
   const router = useRouter()
@@ -23,9 +39,10 @@ export default function CandidateResultsPortal() {
         const feedbacksStore = JSON.parse(localStorage.getItem("candidateFeedbacks") || "{}")
         const feedbacksForEmail = feedbacksStore[email] || []
         // attach feedback per evaluation id if available
-        const attemptsWithFeedback = (res || []).map((att: any) => ({
+        const attemptsWithFeedback = (res || []).map((att: Attempt) => ({
           ...att,
-          feedback: (feedbacksForEmail.find((f: any) => f.evaluationId === att.evaluationId) || {}).feedback || att.feedback,
+          feedback: (feedbacksForEmail.find((f: { evaluationId: string, feedback: string }) => 
+            f.evaluationId === att.evaluationId) || {}).feedback || att.feedback,
         }))
         setAttempts(attemptsWithFeedback)
       } catch (e) {
@@ -109,6 +126,35 @@ export default function CandidateResultsPortal() {
                       <div className="text-sm text-gray-700">
                         <p>Duration: {a.duration} minutes</p>
                         <p className="mt-2">Feedback: {a.feedback || 'No specific feedback provided.'}</p>
+                        
+                        {a.areaScores && a.areaScores.length > 0 && (
+                          <div className="mt-4">
+                            <h4 className="font-medium text-gray-900 flex items-center mb-3">
+                              <BarChart3 className="w-4 h-4 mr-2" />
+                              Area Performance
+                            </h4>
+                            <div className="space-y-3">
+                              {a.areaScores.map((area, idx) => (
+                                <div key={idx}>
+                                  <div className="flex justify-between text-xs mb-1">
+                                    <span>{area.name}</span>
+                                    <span className="font-medium">{area.score}%</span>
+                                  </div>
+                                  <div className="w-full bg-gray-200 h-2 rounded-full">
+                                    <div 
+                                      className={`h-2 rounded-full ${
+                                        area.score >= 80 ? 'bg-green-500' :
+                                        area.score >= 70 ? 'bg-blue-500' :
+                                        area.score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                                      }`} 
+                                      style={{ width: `${area.score}%` }}
+                                    ></div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <div className="mt-4 text-right">
                         <Button variant="outline" onClick={() => router.push(`/evaluation/${a.evaluationId}/completed`)}>
