@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { BookOpen, Users, FileText, BarChart3, Plus, LogOut, Clock, CheckCircle, User, Home, X } from "lucide-react"
 import Link from "next/link"
 import mockApi from "@/lib/mockApi"
+import * as LocalStorage from "@/lib/localStorage"
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -28,40 +29,32 @@ export default function AdminDashboard() {
   })
 
   useEffect(() => {
-    const auth = typeof window !== 'undefined' ? localStorage.getItem("adminAuth") : null
-    const email = typeof window !== 'undefined' ? (localStorage.getItem("adminEmail") || "admin@example.com") : "admin@example.com"
-    const storedCompany = typeof window !== 'undefined' ? localStorage.getItem('companyName') : null
+    const auth = LocalStorage.getItem("adminAuth")
+    const email = LocalStorage.getItem("adminEmail", "admin@example.com")
+    const storedCompany = LocalStorage.getItem('companyName')
+    
     if (!auth) {
       router.push("/login")
     } else {
       setIsAuthenticated(true)
       setAdminEmail(email)
       if (storedCompany) setCompanyName(storedCompany)
+      
       // safely hydrate client-only data
-      try {
-        const ev = JSON.parse(typeof window !== 'undefined' ? (localStorage.getItem("evaluators") || "[]") : '[]')
-        setEvaluators(Array.isArray(ev) ? ev : [])
-      } catch (e) {
-        setEvaluators([])
-      }
-      try {
-        const logs = JSON.parse(typeof window !== 'undefined' ? (localStorage.getItem("auditLogs") || "[]") : '[]')
-        setAuditLogs(Array.isArray(logs) && logs.length ? logs : ["System initialized: sample data loaded (2025-08-18)"])
-      } catch (e) {
-        // keep default
-      }
-      try {
-        const c = JSON.parse(typeof window !== 'undefined' ? (localStorage.getItem("candidates") || "[]") : '[]')
-        setCandidatesList(Array.isArray(c) ? c : [])
-      } catch (e) {
-        setCandidatesList([])
-      }
+      const ev = LocalStorage.getJSON<string[]>("evaluators", [])
+      setEvaluators(Array.isArray(ev) ? ev : [])
+      
+      const logs = LocalStorage.getJSON<string[]>("auditLogs", ["System initialized: sample data loaded (2025-08-18)"])
+      setAuditLogs(Array.isArray(logs) && logs.length ? logs : ["System initialized: sample data loaded (2025-08-18)"])
+      
+      const c = LocalStorage.getJSON<any[]>("candidates", [])
+      setCandidatesList(Array.isArray(c) ? c : [])
     }
   }, [router])
 
   const handleLogout = () => {
-    localStorage.removeItem("adminAuth")
-    localStorage.removeItem("adminEmail")
+    LocalStorage.removeItem("adminAuth")
+    LocalStorage.removeItem("adminEmail")
     router.push("/")
   }
 
@@ -82,7 +75,7 @@ export default function AdminDashboard() {
     const timestamped = `${entry} on ${new Date().toLocaleString()}`
     const next = [timestamped, ...auditLogs]
     setAuditLogs(next)
-    localStorage.setItem("auditLogs", JSON.stringify(next))
+    LocalStorage.setJSON("auditLogs", next)
   }
 
   const handleInviteEvaluator = (email?: string) => {
@@ -95,7 +88,7 @@ export default function AdminDashboard() {
     }
     const next = [...evaluators, inviteEmail]
     setEvaluators(next)
-    localStorage.setItem("evaluators", JSON.stringify(next))
+    LocalStorage.setJSON("evaluators", next)
     recordAudit(`Admin invited evaluator ${inviteEmail}`)
     alert(`Invitation sent to ${inviteEmail} (mock)`)
   }
@@ -110,7 +103,7 @@ export default function AdminDashboard() {
         recordAudit(`Admin invited evaluator ${em} (bulk)`)
       }
     }
-    setEvaluators(JSON.parse(localStorage.getItem('evaluators') || '[]'))
+    setEvaluators(LocalStorage.getJSON('evaluators', []))
     alert(`Invites processed for ${emails.length} emails (mock).`)
   }
 
@@ -120,8 +113,8 @@ export default function AdminDashboard() {
     const res = await mockApi.promoteCandidate(candidateId)
     if (res.ok) {
       recordAudit(`Admin promoted candidate ${candidateEmail || candidateId} to Evaluator`)
-      setCandidatesList(JSON.parse(localStorage.getItem('candidates') || '[]'))
-      setEvaluators(JSON.parse(localStorage.getItem('evaluators') || '[]'))
+      setCandidatesList(LocalStorage.getJSON('candidates', []))
+      setEvaluators(LocalStorage.getJSON('evaluators', []))
       alert('Candidate promoted and notified (mock)')
     } else {
       alert('Promotion failed (mock)')
@@ -131,9 +124,11 @@ export default function AdminDashboard() {
   const handleSendCandidateEmail = (to: string, name?: string) => {
     const subject = `Message from ${companyName}`
     const body = `Hello ${name || ''},\n\nYou have a message from the admin.\n\nBest regards,\n${companyName}`
-    const sent = JSON.parse(localStorage.getItem('sentEmails') || '[]')
+    
+    const sent = LocalStorage.getJSON<any[]>('sentEmails', [])
     sent.push({ to, subject, body, sentAt: new Date().toISOString() })
-    localStorage.setItem('sentEmails', JSON.stringify(sent))
+    LocalStorage.setJSON('sentEmails', sent)
+    
     recordAudit(`Admin sent email to ${to}`)
     alert('Email sent (mock)')
   }
@@ -147,7 +142,7 @@ export default function AdminDashboard() {
       return
     }
     // refresh local evaluators list from mock storage
-    setEvaluators(JSON.parse(localStorage.getItem("evaluators") || "[]"))
+    setEvaluators(LocalStorage.getJSON("evaluators", []))
     recordAudit(`Admin invited evaluator ${email} (via API)`) 
     alert(`Invitation sent to ${email} (mock) - link: ${res.inviteLink}`)
   }
@@ -156,13 +151,15 @@ export default function AdminDashboard() {
   const name = prompt("Company name", companyName) || companyName
   const email = prompt("Your admin email", adminEmail || "admin@example.com") || adminEmail
   setCompanyName(name)
-  localStorage.setItem("companyName", name)
+  LocalStorage.setItem("companyName", name)
+  
   // call mock api register
   mockApi.registerCompanyAdmin(name, email).then((r) => {
     if (r.ok) {
       // store admin email locally, but require verification flow
-      localStorage.setItem("adminEmail", email)
-      localStorage.setItem("adminAuth", "pending_verification")
+      LocalStorage.setItem("adminEmail", email)
+      LocalStorage.setItem("adminAuth", "pending_verification")
+      
       recordAudit(`Company registered: ${name} (admin ${email} created, verification sent)`)
       alert(`Company registered. A verification email was sent to ${email} (mock). Check 'sent emails' for token.`)
     } else {
@@ -181,8 +178,8 @@ export default function AdminDashboard() {
       setEvaluators([])
       setCompanyName("")
       setAuditLogs([`Company data deleted by ${adminEmail}`])
-      localStorage.removeItem("adminAuth")
-      localStorage.removeItem("adminEmail")
+      LocalStorage.removeItem("adminAuth")
+      LocalStorage.removeItem("adminEmail")
       alert("Company and all data removed (mock)")
     })
   }
@@ -206,7 +203,7 @@ export default function AdminDashboard() {
   }
 
   const handleShowSentEmails = () => {
-    const sent = JSON.parse(localStorage.getItem("sentEmails") || "[]")
+    const sent = LocalStorage.getJSON<any[]>("sentEmails", [])
     if (!sent.length) return alert("No sent emails (mock)")
     const text = sent.map((s: any) => `${s.to} — ${s.subject}\n${s.body}\n---`).join("\n")
     alert(text)
@@ -688,7 +685,7 @@ export default function AdminDashboard() {
                       <Button variant="outline" onClick={() => {
                         const name = prompt('Company name', companyName) || companyName
                         setCompanyName(name)
-                        localStorage.setItem('companyName', name)
+                        LocalStorage.setItem('companyName', name)
                         recordAudit(`Company registered: ${name}`)
                       }}>Register / Edit Company</Button>
                     </div>
@@ -763,7 +760,10 @@ export default function AdminDashboard() {
                   <div className="p-4 border rounded-lg">
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="font-medium">Audit Logs</h4>
-                      <Button variant="ghost" size="sm" onClick={() => { setAuditLogs([]); localStorage.removeItem('auditLogs') }}>
+                      <Button variant="ghost" size="sm" onClick={() => { 
+                        setAuditLogs([]); 
+                        LocalStorage.removeItem('auditLogs')
+                      }}>
                         Clear
                       </Button>
                     </div>
