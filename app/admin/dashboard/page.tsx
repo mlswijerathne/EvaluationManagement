@@ -11,6 +11,7 @@ import { BookOpen, Users, FileText, BarChart3, Plus, LogOut, Clock, CheckCircle,
 import Link from "next/link"
 import mockApi from "@/lib/mockApi"
 import * as LocalStorage from "@/lib/localStorage"
+import ManageAllCandidatesButton from "@/components/manage-all-candidates-button"
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -26,6 +27,11 @@ export default function AdminDashboard() {
     name: "",
     email: "",
     password: "",
+  })
+  const [showInviteForm, setShowInviteForm] = useState(false)
+  const [inviteForm, setInviteForm] = useState({
+    name: "",
+    email: ""
   })
 
   useEffect(() => {
@@ -64,11 +70,55 @@ export default function AdminDashboard() {
       return
     }
 
-    console.log("Adding candidate:", candidateForm)
-    alert("Candidate added successfully!")
+    // Add the new candidate to the list
+    const newCandidate = {
+      id: `cand-${Date.now()}`,
+      name: candidateForm.name,
+      email: candidateForm.email,
+      password: candidateForm.password, // In a real app, this should be properly hashed
+      role: 'candidate',
+      status: 'active'
+    }
+    
+    const candidates = LocalStorage.getJSON<any[]>('candidates', [])
+    candidates.push(newCandidate)
+    LocalStorage.setJSON('candidates', candidates)
+    
+    setCandidatesList(candidates)
+    recordAudit(`Admin added candidate ${candidateForm.email}`)
 
     setCandidateForm({ name: "", email: "", password: "" })
     setShowAddCandidateForm(false)
+    
+    alert("Candidate added successfully!")
+  }
+  
+  const handleInviteCandidate = () => {
+    if (!inviteForm.name || !inviteForm.email) {
+      alert("Please fill in all fields")
+      return
+    }
+    
+    // Mock API call to invite candidate
+    const newCandidate = {
+      id: `cand-${Date.now()}`,
+      name: inviteForm.name,
+      email: inviteForm.email,
+      role: 'candidate',
+      status: 'invited'
+    }
+    
+    const candidates = LocalStorage.getJSON<any[]>('candidates', [])
+    candidates.push(newCandidate)
+    LocalStorage.setJSON('candidates', candidates)
+    
+    setCandidatesList(candidates)
+    recordAudit(`Admin invited candidate ${inviteForm.email}`)
+    
+    setInviteForm({ name: "", email: "" })
+    setShowInviteForm(false)
+    
+    alert(`Invitation sent to ${inviteForm.email} (mock)`)
   }
 
   const recordAudit = (entry: string) => {
@@ -389,7 +439,7 @@ export default function AdminDashboard() {
                     </Card>
                   </Link>
 
-                  <button onClick={() => setActiveTab("candidates")} className="block w-full">
+                  <button onClick={() => setShowAddCandidateForm(true)} className="block w-full">
                     <Card className="border-2 border-dashed border-green-200 hover:border-green-400 hover:bg-green-50 transition-all duration-200 cursor-pointer group">
                       <CardContent className="p-4 text-center flex items-center space-x-4">
                         <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center group-hover:bg-green-200 transition-colors">
@@ -404,6 +454,46 @@ export default function AdminDashboard() {
                       </CardContent>
                     </Card>
                   </button>
+                  
+                  {showAddCandidateForm && (
+                    <Card className="mt-4">
+                      <CardHeader>
+                        <CardTitle>Add New Candidate</CardTitle>
+                        <CardDescription>Create a candidate account manually</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          <div>
+                            <Label>Full Name</Label>
+                            <Input 
+                              value={candidateForm.name} 
+                              onChange={(e) => setCandidateForm({ ...candidateForm, name: e.target.value })} 
+                            />
+                          </div>
+                          <div>
+                            <Label>Email</Label>
+                            <Input 
+                              type="email"
+                              value={candidateForm.email} 
+                              onChange={(e) => setCandidateForm({ ...candidateForm, email: e.target.value })} 
+                            />
+                          </div>
+                          <div>
+                            <Label>Password</Label>
+                            <Input 
+                              type="password"
+                              value={candidateForm.password} 
+                              onChange={(e) => setCandidateForm({ ...candidateForm, password: e.target.value })} 
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button onClick={handleAddCandidate}>Add Candidate</Button>
+                            <Button variant="outline" onClick={() => setShowAddCandidateForm(false)}>Cancel</Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
               </div>
             </div>
@@ -496,70 +586,39 @@ export default function AdminDashboard() {
 
           {activeTab === "candidates" && (
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
+                            <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle>Candidates</CardTitle>
                   <CardDescription>Manage candidate accounts and assignments</CardDescription>
                 </div>
-                <Button onClick={() => setShowAddCandidateForm(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Candidate
+                <Button onClick={() => setShowInviteForm(true)}>
+                  <Plus className="w-4 h-4 mr-2" /> Add Candidate
                 </Button>
               </CardHeader>
               <CardContent>
-                {showAddCandidateForm && (
-                  <div className="mb-6 p-6 border-2 border-blue-200 rounded-lg bg-blue-50">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900">Add New Candidate</h3>
-                      <Button variant="ghost" size="sm" onClick={() => setShowAddCandidateForm(false)}>
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <Label htmlFor="candidateName">Full Name</Label>
-                        <Input
-                          id="candidateName"
-                          type="text"
-                          placeholder="Enter candidate's full name"
-                          value={candidateForm.name}
-                          onChange={(e) => setCandidateForm({ ...candidateForm, name: e.target.value })}
-                        />
+                {showInviteForm && (
+                  <Card className="mb-4">
+                    <CardHeader>
+                      <CardTitle>Invite Candidate</CardTitle>
+                      <CardDescription>Send invites to candidates to join</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div>
+                          <Label>Name</Label>
+                          <Input value={inviteForm.name} onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })} />
+                        </div>
+                        <div>
+                          <Label>Email</Label>
+                          <Input value={inviteForm.email} onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })} />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button onClick={handleInviteCandidate}>Send Invite</Button>
+                          <Button variant="outline" onClick={() => setShowInviteForm(false)}>Cancel</Button>
+                        </div>
                       </div>
-                      <div>
-                        <Label htmlFor="candidateEmail">Email Address</Label>
-                        <Input
-                          id="candidateEmail"
-                          type="email"
-                          placeholder="Enter candidate's email"
-                          value={candidateForm.email}
-                          onChange={(e) => setCandidateForm({ ...candidateForm, email: e.target.value })}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mb-4">
-                      <Label htmlFor="candidatePassword">Temporary Password</Label>
-                      <Input
-                        id="candidatePassword"
-                        type="password"
-                        placeholder="Create a temporary password"
-                        value={candidateForm.password}
-                        onChange={(e) => setCandidateForm({ ...candidateForm, password: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="flex space-x-2">
-                      <Button onClick={handleAddCandidate}>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Candidate
-                      </Button>
-                      <Button variant="outline" onClick={() => setShowAddCandidateForm(false)}>
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
                 )}
 
                 <div className="space-y-4">
@@ -578,11 +637,11 @@ export default function AdminDashboard() {
                     <Badge className="bg-yellow-100 text-yellow-800">In Progress</Badge>
                   </div>
                   <div className="text-center py-4">
-                    <Link href="/admin/candidates">
-                      <Button variant="outline" className="bg-transparent">
-                        Manage All Candidates
-                      </Button>
-                    </Link>
+                    <ManageAllCandidatesButton 
+                      isAdmin={true}
+                      variant="outline"
+                      className="bg-transparent"
+                    />
                   </div>
                 </div>
               </CardContent>
@@ -657,72 +716,97 @@ export default function AdminDashboard() {
             </Card>
           )}
 
-          {activeTab === "company" && (
+            {activeTab === "company" && (
             <Card>
               <CardHeader className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Company Settings</CardTitle>
-                  <CardDescription>Manage company, evaluators and audit logs</CardDescription>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Button variant="outline" onClick={() => handleRegisterCompany()}>
-                    Register / Edit Company
-                  </Button>
-                  <Button variant="outline" onClick={() => handleInviteEvaluator()}>
-                    Invite Evaluator
-                  </Button>
-                  <Button variant="outline" onClick={handleExportAll}>
-                    Export Data
-                  </Button>
-                </div>
+              <div>
+                <CardTitle>Company Settings</CardTitle>
+                <CardDescription>Manage company, evaluators and audit logs</CardDescription>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button variant="outline" onClick={() => handleRegisterCompany()}>
+                Register / Edit Company
+                </Button>
+                <Button variant="outline" onClick={() => handleInviteEvaluator()}>
+                Invite Evaluator
+                </Button>
+                <Button variant="outline" onClick={handleExportAll}>
+                Export Data
+                </Button>
+              </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <h3 className="font-medium">Company</h3>
-                    <p className="text-sm text-gray-600">{companyName || "(Not registered)"}</p>
-                    <div className="mt-3 flex gap-2">
-                      <Button variant="outline" onClick={() => {
-                        const name = prompt('Company name', companyName) || companyName
-                        setCompanyName(name)
-                        LocalStorage.setItem('companyName', name)
-                        recordAudit(`Company registered: ${name}`)
-                      }}>Register / Edit Company</Button>
-                    </div>
+              <div className="space-y-4">
+                <div className="p-4 bg-gray-50 rounded-lg">
+                <h3 className="font-medium">Company</h3>
+                <p className="text-sm text-gray-600">{companyName || "(Not registered)"}</p>
+                <div className="mt-3 flex gap-2">
+                  <Button variant="outline" onClick={() => {
+                  const name = prompt('Company name', companyName) || companyName
+                  setCompanyName(name)
+                  LocalStorage.setItem('companyName', name)
+                  recordAudit(`Company registered: ${name}`)
+                  }}>Register / Edit Company</Button>
+                </div>
+                </div>
+
+                <div className="p-4 border rounded-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium">Evaluators</h4>
+                  <span className="text-sm text-gray-500">{evaluators.length} invited</span>
+                </div>
+
+                <div className="mb-3">
+                  <label className="text-sm font-medium">Invite evaluator</label>
+                  <div className="mt-2 flex gap-2">
+                  <Input id="inviteEmail" placeholder="evaluator@example.com" />
+                  <Button onClick={() => {
+                    const el = (document.getElementById('inviteEmail') as HTMLInputElement)
+                    if (!el || !el.value) return alert('Enter email')
+                    handleInviteEvaluator(el.value.trim())
+                    el.value = ''
+                  }}>Send Invite</Button>
                   </div>
-
-                  <div className="p-4 border rounded-lg">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-medium">Evaluators</h4>
-                      <span className="text-sm text-gray-500">{evaluators.length} invited</span>
-                    </div>
-
-                    <div className="mb-3">
-                      <label className="text-sm font-medium">Invite evaluator</label>
-                      <div className="mt-2 flex gap-2">
-                        <Input id="inviteEmail" placeholder="evaluator@example.com" />
-                        <Button onClick={() => {
-                          const el = (document.getElementById('inviteEmail') as HTMLInputElement)
-                          if (!el || !el.value) return alert('Enter email')
-                          handleInviteEvaluator(el.value.trim())
-                          el.value = ''
-                        }}>Send Invite</Button>
-                        <Button variant="outline" onClick={handleBulkInviteEvaluators}>Bulk Invite</Button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      {evaluators.map((e) => (
-                        <div key={e} className="flex items-center justify-between">
-                          <div>
-                            <p className="font-medium">{e.split("@")[0]}</p>
-                            <p className="text-xs text-gray-500">{e}</p>
-                          </div>
-                          <div className="text-sm text-gray-500">Invited</div>
-                        </div>
-                      ))}
-                    </div>
+                </div>
+                
+                <div className="mb-3">
+                  <label className="text-sm font-medium">Bulk Invite</label>
+                  <div className="mt-2">
+                  <textarea 
+                    id="bulkInviteEmails" 
+                    placeholder="Enter multiple email addresses separated by commas or new lines" 
+                    className="w-full p-2 border rounded-md h-24 text-sm"
+                  ></textarea>
+                  <div className="mt-2">
+                    <Button onClick={() => {
+                    const el = (document.getElementById('bulkInviteEmails') as HTMLTextAreaElement)
+                    if (!el || !el.value) return alert('Enter emails')
+                    const emails = el.value.split(/[\s,]+/).filter(Boolean).map(e => e.trim())
+                    if (!emails.length) return alert('No valid emails found')
+                    emails.forEach(async (email) => {
+                      if (email) await mockApi.inviteEvaluator(email, adminEmail)
+                    })
+                    setEvaluators(LocalStorage.getJSON('evaluators', []))
+                    recordAudit(`Admin invited ${emails.length} evaluators (bulk)`)
+                    alert(`Processed ${emails.length} invitations`)
+                    el.value = ''
+                    }}>Send Bulk Invites</Button>
                   </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {evaluators.map((e) => (
+                  <div key={e} className="flex items-center justify-between">
+                    <div>
+                    <p className="font-medium">{e.split("@")[0]}</p>
+                    <p className="text-xs text-gray-500">{e}</p>
+                    </div>
+                    <div className="text-sm text-gray-500">Invited</div>
+                  </div>
+                  ))}
+                </div>
+                </div>
 
                   <div className="p-4 border rounded-lg">
                     <div className="flex items-center justify-between mb-3">

@@ -6,8 +6,9 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import mockApi from "@/lib/mockApi"
+import CandidateManager from "@/components/candidate-manager"
+import { updateCandidateEvaluationResults } from "@/lib/evaluationResults"
 
 export default function AdminCandidatesPage() {
   const router = useRouter()
@@ -15,26 +16,71 @@ export default function AdminCandidatesPage() {
   const [adminEmail, setAdminEmail] = useState("")
   const [companyName, setCompanyName] = useState<string>("TechNova Pvt Ltd")
   const [candidates, setCandidates] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+
+  const loadCandidates = () => {
+    try { 
+      // Update evaluation results first
+      updateCandidateEvaluationResults();
+      setCandidates(JSON.parse(typeof window !== 'undefined' ? (localStorage.getItem('candidates') || '[]') : '[]')) 
+    } catch(e) { 
+      setCandidates([]) 
+    }
+  }
 
   useEffect(() => {
     const auth = typeof window !== 'undefined' ? localStorage.getItem("adminAuth") : null
     const email = typeof window !== 'undefined' ? (localStorage.getItem("adminEmail") || "admin@example.com") : "admin@example.com"
     const storedCompany = typeof window !== 'undefined' ? localStorage.getItem('companyName') : null
+    
     if (!auth) router.push('/login')
     else {
       setIsAuthenticated(true)
       setAdminEmail(email)
       if (storedCompany) setCompanyName(storedCompany)
-      try { setCandidates(JSON.parse(typeof window !== 'undefined' ? (localStorage.getItem('candidates') || '[]') : '[]')) } catch(e) { setCandidates([]) }
+      loadCandidates()
+      
+      // Check for candidateId in URL query params
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const candidateId = urlParams.get('candidateId');
+        
+        if (candidateId) {
+          // Wait for candidates to load then find and show the candidate profile
+          const checkCandidates = setInterval(() => {
+            const candidate = candidates.find((c) => c.id === candidateId);
+            if (candidate) {
+              clearInterval(checkCandidates);
+              // Use setTimeout to ensure the component has fully rendered
+              setTimeout(() => {
+                const viewingCandidateEvent = new CustomEvent('viewCandidate', { detail: candidate });
+                window.dispatchEvent(viewingCandidateEvent);
+              }, 500);
+            }
+          }, 200);
+          
+          // Clear interval after 5 seconds to avoid infinite checking
+          setTimeout(() => clearInterval(checkCandidates), 5000);
+        }
+      }
     }
   }, [router])
 
   const handlePromote = async (id: string, email?: string, name?: string) => {
     const confirmed = confirm(`Promote ${name || email || id} to Evaluator?`)
     if (!confirmed) return
-    await mockApi.promoteCandidate(id)
-    setCandidates(JSON.parse(localStorage.getItem('candidates') || '[]'))
-    alert('Promoted (mock)')
+    
+    setIsLoading(true)
+    try {
+      await mockApi.promoteCandidate(id)
+      loadCandidates()
+      alert('Promoted (mock)')
+    } catch (error) {
+      console.error('Error promoting candidate:', error)
+      alert('Failed to promote candidate')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleSendEmail = (to: string, name?: string) => {
@@ -65,24 +111,21 @@ export default function AdminCandidatesPage() {
         </div>
       </div>
 
-      <div className="space-y-4">
-        {candidates.map((c) => (
-          <Card key={c.id}>
-            <CardContent className="flex items-center justify-between">
-              <div>
-                <h3 className="font-medium">{c.name}</h3>
-                <p className="text-xs text-gray-500">{c.email}</p>
-                <p className="text-xs text-gray-400">Last activity: {c.lastActivity ? new Date(c.lastActivity).toLocaleDateString() : '--'}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge className={c.role === 'employee' ? 'bg-gray-100 text-gray-800' : c.role === 'candidate' ? 'bg-yellow-50 text-yellow-800' : 'bg-blue-100 text-blue-800'}>{c.role}</Badge>
-                <Button size="sm" onClick={() => handleSendEmail(c.email, c.name)}>Send Email</Button>
-                {c.role !== 'evaluator' && <Button size="sm" onClick={() => handlePromote(c.id, c.email, c.name)}>Promote</Button>}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Manage Candidates</CardTitle>
+          <CardDescription>Search, view, and manage all candidates in your organization</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CandidateManager
+            candidates={candidates}
+            onSendEmail={handleSendEmail}
+            onPromote={handlePromote}
+            isAdmin={true}
+            refreshCandidates={loadCandidates}
+          />
+        </CardContent>
+      </Card>
     </div>
   )
 }

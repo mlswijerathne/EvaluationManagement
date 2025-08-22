@@ -7,9 +7,10 @@ import { Card, CardContent, CardHeader, CardDescription, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { BookOpen, Users, FileText, BarChart3, Plus, LogOut, Home } from "lucide-react"
+import { BookOpen, Users, FileText, BarChart3, Plus, LogOut, Home, User } from "lucide-react"
 import Link from "next/link"
 import mockApi from "@/lib/mockApi"
+import ManageAllCandidatesButton from "@/components/manage-all-candidates-button"
 
 export default function EvaluatorDashboard() {
   const router = useRouter()
@@ -109,12 +110,13 @@ export default function EvaluatorDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Header is now handled by the layout */}
       <header className="bg-white border-b">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">Evaluator Dashboard</h1>
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2 px-3 py-1 bg-blue-50 rounded-full">
-              <Users className="w-4 h-4 text-blue-600" />
+              <User className="w-4 h-4 text-blue-600" />
               <span className="text-sm font-medium text-blue-700">Evaluator</span>
               <span className="text-xs text-blue-600">({email})</span>
             </div>
@@ -227,7 +229,7 @@ export default function EvaluatorDashboard() {
                 </Card>
 
                 <div className="grid grid-cols-1 gap-4">
-                  <Link href="/evaluator/evaluations" className="block">
+                  <Link href="/evaluator/evaluations" className="block" prefetch={false}>
                     <Card className="border-2 border-dashed border-purple-200 hover:border-purple-400 hover:bg-purple-50 transition-all duration-200 cursor-pointer group">
                       <CardContent className="p-4 text-center flex items-center space-x-4">
                         <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center group-hover:bg-purple-200 transition-colors">
@@ -266,7 +268,7 @@ export default function EvaluatorDashboard() {
                   <CardTitle>Question Banks</CardTitle>
                   <CardDescription>Manage your question repositories by subject</CardDescription>
                 </div>
-                <Link href="/evaluator/questions">
+                <Link href="/evaluator/questions" prefetch={false}>
                   <Button>
                     <Plus className="w-4 h-4 mr-2" />
                     Manage Questions
@@ -312,7 +314,7 @@ export default function EvaluatorDashboard() {
                   <CardTitle>Evaluations</CardTitle>
                   <CardDescription>Create and manage candidate assessments</CardDescription>
                 </div>
-                <Link href="/evaluator/evaluations">
+                <Link href="/evaluator/evaluations" prefetch={false}>
                   <Button>
                     <Plus className="w-4 h-4 mr-2" />
                     Create Evaluation
@@ -348,20 +350,14 @@ export default function EvaluatorDashboard() {
                     </div>
                   </div>
                   <div className="text-center py-4">
-                    <Button
-                      variant="outline"
-                      className="bg-transparent"
-                      onClick={() => {
-                        const auth = typeof window !== 'undefined' ? localStorage.getItem('evaluatorAuth') : null
-                        if (!auth) {
-                          router.push('/login')
-                          return
-                        }
-                        router.push('/evaluator/evaluations')
-                      }}
-                    >
-                      View All Evaluations
-                    </Button>
+                    <Link href="/evaluator/evaluations" prefetch={false}>
+                      <Button
+                        variant="outline"
+                        className="bg-transparent"
+                      >
+                        View All Evaluations
+                      </Button>
+                    </Link>
                   </div>
                 </div>
               </CardContent>
@@ -421,6 +417,14 @@ export default function EvaluatorDashboard() {
                         </div>
                       </div>
                     ))}
+                    
+                    <div className="text-center py-4 mt-4">
+                      <ManageAllCandidatesButton 
+                        isAdmin={false}
+                        variant="outline"
+                        className="bg-transparent"
+                      />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -445,7 +449,7 @@ export default function EvaluatorDashboard() {
                   </div>
                 </div>
                 <div className="mt-4 flex justify-end">
-                  <Link href="/evaluator/results">
+                  <Link href="/evaluator/results" prefetch={false}>
                     <Button>
                       View Full Results
                     </Button>

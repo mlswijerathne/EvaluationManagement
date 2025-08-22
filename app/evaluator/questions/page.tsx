@@ -78,7 +78,7 @@ export default function QuestionsPage() {
   })
 
   useEffect(() => {
-    const auth = localStorage.getItem("adminAuth")
+    const auth = localStorage.getItem("evaluatorAuth")
     if (!auth) {
       router.push("/login")
     } else {
@@ -595,7 +595,7 @@ export default function QuestionsPage() {
                 Back to Question Banks
               </Button>
             ) : (
-              <Link href="/admin/dashboard">
+              <Link href="/evaluator/dashboard">
                 <Button variant="ghost" size="sm">
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back to Dashboard

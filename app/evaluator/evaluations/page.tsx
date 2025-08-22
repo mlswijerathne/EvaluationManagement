@@ -42,6 +42,7 @@ import {
   Clock,
   Copy,
   Eye,
+  Edit,
   Play,
   Pause,
   Filter,
@@ -50,6 +51,8 @@ import {
   Circle as CircleIcon,
 } from "lucide-react"
 import Link from "next/link"
+import EvaluationCandidates from "@/components/evaluation-candidates"
+import { updateCandidateEvaluationResults } from "@/lib/evaluationResults"
 
 interface Question {
   id: string
@@ -73,6 +76,8 @@ interface Evaluation {
   assignedCandidates: string[]
   createdAt: Date
   accessToken: string
+  version?: number
+  previousVersionId?: string
 }
 
 
@@ -107,11 +112,22 @@ export default function EvaluationsPage() {
   const [isQuestionSelectorOpen, setIsQuestionSelectorOpen] = useState(false)
   const [selectedEvaluation, setSelectedEvaluation] = useState<Evaluation | null>(null)
   const [currentSubjectForSelection, setCurrentSubjectForSelection] = useState<string>("")
+  const [isAddQuestionOpen, setIsAddQuestionOpen] = useState(false)
 
   // Question selection filters
   const [questionSearchTerm, setQuestionSearchTerm] = useState("")
   const [selectedQuestionCategory, setSelectedQuestionCategory] = useState<string>("")
   const [selectedQuestions, setSelectedQuestions] = useState<string[]>([])
+  
+  // New question form
+  const [newQuestion, setNewQuestion] = useState({
+    subject: "",
+    category: "",
+    question: "",
+    options: ["", "", "", ""],
+    correctAnswers: [] as number[],
+    multipleCorrect: false
+  })
 
   // Form states
   const [newEvaluation, setNewEvaluation] = useState({
@@ -127,6 +143,7 @@ export default function EvaluationsPage() {
   const [isEditEvaluationOpen, setIsEditEvaluationOpen] = useState(false)
   const [viewingEvaluation, setViewingEvaluation] = useState<Evaluation | null>(null)
   const [isViewEvaluationOpen, setIsViewEvaluationOpen] = useState(false)
+  const [isViewCandidatesOpen, setIsViewCandidatesOpen] = useState(false)
   const [prebuiltEvaluations, setPrebuiltEvaluations] = useState<Evaluation[]>([
     {
       id: "template-1",
@@ -170,11 +187,13 @@ export default function EvaluationsPage() {
 
   const [successMessage, setSuccessMessage] = useState("")
   const [adminEmail, setAdminEmail] = useState<string>("admin@example.com")
+  const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false)
+  const [questionsModified, setQuestionsModified] = useState(false)
 
   // candidate assignment is done on the Candidates page
 
   useEffect(() => {
-    const auth = localStorage.getItem("adminAuth")
+    const auth = localStorage.getItem("evaluatorAuth")
     if (!auth) {
       router.push("/login")
     } else {
@@ -219,6 +238,9 @@ export default function EvaluationsPage() {
   const loadMockData = () => {
     const savedEvaluations = localStorage.getItem("evaluations")
     const savedQuestions = localStorage.getItem("questions")
+    
+    // Update evaluation results in candidate profiles
+    updateCandidateEvaluationResults()
 
     // Mock questions
     const mockQuestions: Question[] = [
@@ -430,6 +452,10 @@ export default function EvaluationsPage() {
         ...newEvaluation,
         subjects: [...newEvaluation.subjects, newSubject],
       })
+      
+      if (editingEvaluation) {
+        setQuestionsModified(true);
+      }
     }
   }
 
@@ -438,6 +464,10 @@ export default function EvaluationsPage() {
       ...newEvaluation,
       subjects: newEvaluation.subjects.filter((s) => s.subject !== subject),
     })
+    
+    if (editingEvaluation) {
+      setQuestionsModified(true);
+    }
   }
 
   const updateSubjectQuestionCount = (subject: string, count: number) => {
@@ -445,6 +475,10 @@ export default function EvaluationsPage() {
       ...newEvaluation,
       subjects: newEvaluation.subjects.map((s) => (s.subject === subject ? { ...s, questionCount: count } : s)),
     })
+    
+    if (editingEvaluation) {
+      setQuestionsModified(true);
+    }
   }
 
   const openQuestionSelector = (subject: string) => {
@@ -457,6 +491,15 @@ export default function EvaluationsPage() {
   }
 
   const handleQuestionSelection = () => {
+    // Get the previous specific questions for comparison
+    const currentSubject = newEvaluation.subjects.find((s) => s.subject === currentSubjectForSelection);
+    const previousQuestions = currentSubject?.specificQuestions || [];
+    
+    // Check if questions changed
+    const questionsChanged = 
+      previousQuestions.length !== selectedQuestions.length || 
+      !previousQuestions.every(q => selectedQuestions.includes(q));
+    
     setNewEvaluation({
       ...newEvaluation,
       subjects: newEvaluation.subjects.map((s) =>
@@ -465,9 +508,92 @@ export default function EvaluationsPage() {
           : s,
       ),
     })
+    
+    // If editing and questions changed, flag that we've modified questions
+    if (editingEvaluation && questionsChanged) {
+      setQuestionsModified(true);
+    }
+    
     setIsQuestionSelectorOpen(false)
     setCurrentSubjectForSelection("")
     setSelectedQuestions([])
+  }
+  
+  // Open the Add Question dialog with preselected subject
+  const openAddQuestionDialog = (subject: string) => {
+    setNewQuestion({
+      ...newQuestion,
+      subject: subject,
+      category: "",
+      question: "",
+      options: ["", "", "", ""],
+      correctAnswers: [],
+      multipleCorrect: false
+    });
+    setIsAddQuestionOpen(true);
+  }
+  
+  // Handle adding a new question and applying versioning if needed
+  const handleAddQuestion = () => {
+    // Validate question
+    if (!newQuestion.subject || !newQuestion.category || !newQuestion.question || 
+        newQuestion.options.some(o => !o.trim()) || newQuestion.correctAnswers.length === 0) {
+      alert("Please fill in all question fields and select at least one correct answer");
+      return;
+    }
+    
+    // Create new question
+    const question: Question = {
+      id: `q-${Date.now()}`,
+      subject: newQuestion.subject,
+      category: newQuestion.category,
+      question: newQuestion.question,
+      options: newQuestion.options,
+      correctAnswers: newQuestion.correctAnswers,
+      multipleCorrect: newQuestion.multipleCorrect,
+      createdAt: new Date()
+    };
+    
+    // Add to questions list
+    const updatedQuestions = [...questions, question];
+    setQuestions(updatedQuestions);
+    localStorage.setItem("questions", JSON.stringify(updatedQuestions));
+    
+    // Add to current evaluation subject
+    const updatedSpecificQuestions = [...(selectedQuestions || []), question.id];
+    
+    setSelectedQuestions(updatedSpecificQuestions);
+    
+    setNewEvaluation({
+      ...newEvaluation,
+      subjects: newEvaluation.subjects.map((s) =>
+        s.subject === newQuestion.subject
+          ? { 
+              ...s, 
+              specificQuestions: updatedSpecificQuestions,
+              questionCount: updatedSpecificQuestions.length 
+            }
+          : s
+      ),
+    });
+    
+    // Mark as modified for versioning
+    if (editingEvaluation) {
+      setQuestionsModified(true);
+    }
+    
+    writeAudit(`Added new question to ${newQuestion.subject}: "${newQuestion.question.substring(0, 30)}..."`);
+    
+    // Reset and close dialog
+    setIsAddQuestionOpen(false);
+    setNewQuestion({
+      subject: "",
+      category: "",
+      question: "",
+      options: ["", "", "", ""],
+      correctAnswers: [],
+      multipleCorrect: false
+    });
   }
 
   const handleEditEvaluation = (evaluation: Evaluation) => {
@@ -481,14 +607,114 @@ export default function EvaluationsPage() {
         evaluation.expiryDate instanceof Date
           ? evaluation.expiryDate.toISOString().split("T")[0]
           : new Date(evaluation.expiryDate).toISOString().split("T")[0],
-  assignedCandidates: evaluation.assignedCandidates || [],
+      assignedCandidates: evaluation.assignedCandidates || [],
     })
+    setQuestionsModified(false)
     setIsEditEvaluationOpen(true)
+  }
+  
+  // Check if questions have been modified
+  const areQuestionsModified = (originalSubjects: any[], newSubjects: any[]): boolean => {
+    // If the number of subjects changed
+    if (originalSubjects.length !== newSubjects.length) return true;
+    
+    // Check each subject for changes in questions
+    for (let i = 0; i < originalSubjects.length; i++) {
+      const original = originalSubjects[i];
+      // Find the matching subject in new subjects
+      const matchingSubject = newSubjects.find(s => s.subject === original.subject);
+      
+      if (!matchingSubject) return true; // Subject was removed
+      
+      // If question count changed
+      if (original.questionCount !== matchingSubject.questionCount) return true;
+      
+      // Check if specific questions changed
+      const originalQuestions = original.specificQuestions || [];
+      const newQuestions = matchingSubject.specificQuestions || [];
+      
+      if (originalQuestions.length !== newQuestions.length) return true;
+      
+      // Check if any question IDs are different
+      for (const qId of originalQuestions) {
+        if (!newQuestions.includes(qId)) return true;
+      }
+    }
+    
+    return false;
   }
 
   const handleSaveEditedEvaluation = () => {
     if (!editingEvaluation) return
 
+    // Check if questions were modified and the evaluation is active with assigned candidates
+    const hasAssignedCandidates = editingEvaluation.assignedCandidates && editingEvaluation.assignedCandidates.length > 0;
+    const isActiveEvaluation = editingEvaluation.status === 'active';
+    const shouldCreateNewVersion = questionsModified && hasAssignedCandidates && isActiveEvaluation;
+    
+    if (shouldCreateNewVersion) {
+      // Open version dialog to confirm
+      setIsVersionDialogOpen(true);
+      return;
+    } else {
+      // Just update the existing evaluation
+      saveEvaluationChanges(false);
+    }
+  }
+  
+  // Create a new version of the evaluation
+  const createNewVersion = () => {
+    if (!editingEvaluation) return;
+    
+    // Get the current version or default to 1
+    const currentVersion = editingEvaluation.version || 1;
+    const newVersion = currentVersion + 1;
+    
+    // Create a new evaluation with incremented version
+    const newVersionEvaluation: Evaluation = {
+      ...editingEvaluation,
+      id: `eval-${Date.now()}`,
+      title: newEvaluation.title,
+      description: newEvaluation.description,
+      subjects: newEvaluation.subjects,
+      duration: newEvaluation.duration,
+      expiryDate: new Date(newEvaluation.expiryDate),
+      assignedCandidates: [], // Start with no assigned candidates
+      status: 'draft', // New version starts as draft
+      createdAt: new Date(),
+      accessToken: Math.random().toString(36).substring(2, 15),
+      version: newVersion,
+      previousVersionId: editingEvaluation.id
+    };
+    
+    // Add the new version to evaluations
+    const updatedEvaluations = [...evaluations, newVersionEvaluation];
+    setEvaluations(updatedEvaluations);
+    localStorage.setItem("evaluations", JSON.stringify(updatedEvaluations));
+    
+    writeAudit(`Created new version of evaluation: ${newEvaluation.title} (v${newVersion})`);
+    
+    setIsVersionDialogOpen(false);
+    setIsEditEvaluationOpen(false);
+    setEditingEvaluation(null);
+    setQuestionsModified(false);
+    setNewEvaluation({
+      title: "",
+      description: "",
+      subjects: [],
+      duration: 60,
+      expiryDate: "",
+      assignedCandidates: [],
+    });
+    
+    setSuccessMessage(`Created new version of evaluation (v${newVersion})!`);
+    setTimeout(() => setSuccessMessage(""), 3000);
+  }
+  
+  // Save changes to the existing evaluation
+  const saveEvaluationChanges = (closeVersionDialog = true) => {
+    if (!editingEvaluation) return;
+    
     const updatedEvaluation: Evaluation = {
       ...editingEvaluation,
       title: newEvaluation.title,
@@ -496,29 +722,35 @@ export default function EvaluationsPage() {
       subjects: newEvaluation.subjects,
       duration: newEvaluation.duration,
       expiryDate: new Date(newEvaluation.expiryDate),
-  // keep assignedCandidates unchanged here (managed on Candidates page)
-  assignedCandidates: editingEvaluation.assignedCandidates,
-    }
+      assignedCandidates: editingEvaluation.assignedCandidates,
+      version: editingEvaluation.version || 1, // Keep the same version number
+    };
 
     const updatedEvaluations = evaluations.map((evaluationItem) =>
       evaluationItem.id === editingEvaluation.id ? updatedEvaluation : evaluationItem,
-    )
-    setEvaluations(updatedEvaluations)
-    localStorage.setItem("evaluations", JSON.stringify(updatedEvaluations))
-
-    setIsEditEvaluationOpen(false)
-    setEditingEvaluation(null)
+    );
+    
+    setEvaluations(updatedEvaluations);
+    localStorage.setItem("evaluations", JSON.stringify(updatedEvaluations));
+    
+    if (closeVersionDialog) {
+      setIsVersionDialogOpen(false);
+    }
+    
+    setIsEditEvaluationOpen(false);
+    setEditingEvaluation(null);
+    setQuestionsModified(false);
     setNewEvaluation({
       title: "",
       description: "",
       subjects: [],
       duration: 60,
       expiryDate: "",
-  assignedCandidates: [],
-    })
+      assignedCandidates: [],
+    });
 
-    setSuccessMessage("Evaluation updated successfully!")
-    setTimeout(() => setSuccessMessage(""), 3000)
+    setSuccessMessage("Evaluation updated successfully!");
+    setTimeout(() => setSuccessMessage(""), 3000);
   }
 
   const handleAssignTemplate = () => {
@@ -627,7 +859,7 @@ export default function EvaluationsPage() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex flex-col gap-4">
             <div className="flex items-center">
-              <Link href="/admin/dashboard">
+              <Link href="/evaluator/dashboard">
                 <Button variant="ghost" size="sm">
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back to Dashboard
@@ -638,11 +870,7 @@ export default function EvaluationsPage() {
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Evaluation Management</h1>
               </div>
-              <div className="flex items-center space-x-2 px-3 py-1 bg-blue-50 rounded-full">
-                <User className="w-4 h-4 text-blue-600" />
-                <span className="text-sm font-medium text-blue-700">Admin</span>
-                <span className="text-xs text-blue-600">({adminEmail})</span>
-              </div>
+              
             </div>
           </div>
         </div>
@@ -883,6 +1111,15 @@ export default function EvaluationsPage() {
                                       <Button
                                         variant="outline"
                                         size="sm"
+                                        onClick={() => openAddQuestionDialog(subject.subject)}
+                                        className="text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                                      >
+                                        <Plus className="w-3 h-3 mr-1" />
+                                        Add Question
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
                                         onClick={() => removeSubjectFromEvaluation(subject.subject)}
                                       >
                                         <Trash2 className="w-4 h-4" />
@@ -900,7 +1137,7 @@ export default function EvaluationsPage() {
                         <Label>Assign Candidates</Label>
                         <div className="mt-2">
                           <p className="text-sm text-gray-600">Candidate assignment is managed on a separate page.</p>
-                          <Link href="/admin/candidates">
+                          <Link href="/evaluator/candidates">
                             <Button variant="outline" size="sm" className="mt-2">
                               <Users className="w-4 h-4 mr-2" />
                               Manage Candidates
@@ -934,7 +1171,14 @@ export default function EvaluationsPage() {
                           <div className="flex items-start justify-between mb-4">
                             <div className="flex-1">
                               <div className="flex items-center space-x-2 mb-2">
-                                <h3 className="font-semibold text-lg">{evaluation.title}</h3>
+                                <h3 className="font-semibold text-lg">
+                                  {evaluation.title}
+                                  {evaluation.version && (
+                                    <span className="ml-2 text-sm font-medium bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                                      v{evaluation.version}
+                                    </span>
+                                  )}
+                                </h3>
                                 <Badge className={getStatusColor(evaluation.status)}>{evaluation.status}</Badge>
                               </div>
                               <p className="text-gray-600 mb-3">{evaluation.description}</p>
@@ -946,7 +1190,18 @@ export default function EvaluationsPage() {
                                 </div>
                                 <div className="flex items-center space-x-2">
                                   <Users className="w-4 h-4 text-gray-500" />
-                                  <span className="text-sm">{evaluation.assignedCandidates.length} candidates</span>
+                                  <Button 
+                                    variant="link" 
+                                    size="sm" 
+                                    className="p-0 h-auto text-sm font-normal text-gray-900 hover:text-blue-600"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedEvaluation(evaluation);
+                                      setIsViewCandidatesOpen(true);
+                                    }}
+                                  >
+                                    {evaluation.assignedCandidates.length} candidates
+                                  </Button>
                                 </div>
                                 <div className="flex items-center space-x-2">
                                   <FileText className="w-4 h-4 text-gray-500" />
@@ -1021,6 +1276,15 @@ export default function EvaluationsPage() {
                                 View Details
                               </Button>
 
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => handleEditEvaluation(evaluation)}
+                              >
+                                <Edit className="w-4 h-4 mr-1" />
+                                Edit
+                              </Button>
+
                               <Button variant="outline" size="sm" onClick={() => cloneEvaluation(evaluation)}>
                                 <Copy className="w-4 h-4 mr-1" />
                                 Clone
@@ -1049,7 +1313,7 @@ export default function EvaluationsPage() {
                                   </AlertDialogFooter>
                                 </AlertDialogContent>
                               </AlertDialog>
-                              <Link href="/admin/candidates">
+                              <Link href="/evaluator/candidates">
                                 <Button variant="outline" size="sm" className="mr-2">
                                   <Users className="w-4 h-4 mr-1" />
                                   Assign Candidates
@@ -1323,7 +1587,7 @@ export default function EvaluationsPage() {
                 <Label>Assign Candidates</Label>
                 <div className="mt-2">
                   <p className="text-sm text-gray-600">Manage candidate assignments on the Candidates page.</p>
-                  <Link href="/admin/candidates">
+                  <Link href="/evaluator/candidates">
                     <Button variant="outline" size="sm" className="mt-2">
                       <Users className="w-4 h-4 mr-2" />
                       Manage Candidates
@@ -1343,6 +1607,208 @@ export default function EvaluationsPage() {
         </Dialog>
   {/* Candidate assignment moved to /admin/candidates */}
       </div>
+      
+      {/* Add Question Dialog */}
+      <Dialog open={isAddQuestionOpen} onOpenChange={setIsAddQuestionOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add New Question</DialogTitle>
+            <DialogDescription>
+              Create a new question and add it directly to the evaluation.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="questionSubject">Subject</Label>
+                <Select 
+                  value={newQuestion.subject}
+                  onValueChange={(value) => setNewQuestion({...newQuestion, subject: value})}
+                  disabled={!!currentSubjectForSelection}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Subject" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {questionBanks.map((bank) => (
+                      <SelectItem key={bank.subject} value={bank.subject}>
+                        {bank.subject}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="questionCategory">Category</Label>
+                <Input
+                  id="questionCategory"
+                  placeholder="e.g., Hooks, Components, etc."
+                  value={newQuestion.category}
+                  onChange={(e) => setNewQuestion({...newQuestion, category: e.target.value})}
+                />
+              </div>
+            </div>
+            
+            <div>
+              <Label htmlFor="questionText">Question</Label>
+              <Textarea
+                id="questionText"
+                placeholder="Enter the question text"
+                value={newQuestion.question}
+                onChange={(e) => setNewQuestion({...newQuestion, question: e.target.value})}
+                rows={3}
+              />
+            </div>
+            
+            <div>
+              <div className="flex items-center justify-between">
+                <Label>Answer Options</Label>
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="multipleCorrect" 
+                    checked={newQuestion.multipleCorrect}
+                    onCheckedChange={(checked) => 
+                      setNewQuestion({...newQuestion, multipleCorrect: checked as boolean})
+                    }
+                  />
+                  <Label htmlFor="multipleCorrect" className="text-sm font-normal cursor-pointer">
+                    Multiple correct answers
+                  </Label>
+                </div>
+              </div>
+              
+              <div className="space-y-3 mt-2">
+                {newQuestion.options.map((option, index) => (
+                  <div key={index} className="flex items-center space-x-3">
+                    <div className="flex-shrink-0">
+                      <Checkbox
+                        id={`option-${index}`}
+                        checked={newQuestion.correctAnswers.includes(index)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            const newCorrectAnswers = newQuestion.multipleCorrect 
+                              ? [...newQuestion.correctAnswers, index]
+                              : [index];
+                            setNewQuestion({...newQuestion, correctAnswers: newCorrectAnswers});
+                          } else {
+                            setNewQuestion({
+                              ...newQuestion, 
+                              correctAnswers: newQuestion.correctAnswers.filter(i => i !== index)
+                            });
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="flex-grow">
+                      <Input
+                        placeholder={`Option ${String.fromCharCode(65 + index)}`}
+                        value={option}
+                        onChange={(e) => {
+                          const newOptions = [...newQuestion.options];
+                          newOptions[index] = e.target.value;
+                          setNewQuestion({...newQuestion, options: newOptions});
+                        }}
+                      />
+                    </div>
+                    {index > 1 && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => {
+                          const newOptions = newQuestion.options.filter((_, i) => i !== index);
+                          const newCorrectAnswers = newQuestion.correctAnswers
+                            .filter(i => i !== index)
+                            .map(i => i > index ? i - 1 : i);
+                          
+                          setNewQuestion({
+                            ...newQuestion, 
+                            options: newOptions,
+                            correctAnswers: newCorrectAnswers
+                          });
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                
+                {newQuestion.options.length < 8 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setNewQuestion({
+                        ...newQuestion,
+                        options: [...newQuestion.options, ""]
+                      });
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" /> Add Option
+                  </Button>
+                )}
+              </div>
+            </div>
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAddQuestionOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleAddQuestion}>
+                Add Question
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Version Dialog for question changes */}
+      <AlertDialog open={isVersionDialogOpen} onOpenChange={setIsVersionDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Create New Evaluation Version?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You've modified questions in an active evaluation that has assigned candidates.
+            </AlertDialogDescription>
+            <div className="my-6 space-y-4">
+              <div className="p-3 bg-amber-50 border border-amber-100 rounded-md text-amber-800">
+                <div className="font-medium">Creating a new version will:</div>
+                <ul className="list-disc pl-5 mt-2 text-sm space-y-1">
+                  <li>Keep the original evaluation unchanged for current candidates</li>
+                  <li>Create a new version with your question changes</li>
+                  <li>The new version will start with no assigned candidates</li>
+                  <li>You can assign candidates to the new version separately</li>
+                </ul>
+              </div>
+              <div className="text-sm text-muted-foreground">How would you like to proceed?</div>
+            </div>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setIsVersionDialogOpen(false)}>Cancel</AlertDialogCancel>
+            <Button variant="outline" onClick={() => saveEvaluationChanges()}>
+              Update Existing Version
+            </Button>
+            <AlertDialogAction onClick={createNewVersion} className="bg-primary">
+              Create New Version
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* View Candidates Dialog */}
+      {selectedEvaluation && (
+        <EvaluationCandidates 
+          evaluationId={selectedEvaluation.id}
+          evaluationTitle={selectedEvaluation.title}
+          isOpen={isViewCandidatesOpen}
+          onClose={() => {
+            setIsViewCandidatesOpen(false);
+            // Update evaluation results when closing the candidates view
+            updateCandidateEvaluationResults();
+          }}
+          isAdmin={false}
+        />
+      )}
     </div>
   )
 }
